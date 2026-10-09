@@ -68,7 +68,7 @@ export function piecePosition(color, p, pieceId, slot, slotCount) {
   if (p < 0) return homeSpot(color, pieceId);
   if (p >= META) return metaSpot(color, pieceId);
   const cell = p <= LAST_TRACK ? squareCell(squareOf(color, p)) : corridorCell(color, p - LAST_TRACK - 1);
-  const o = slotCount > 1 ? (slot === 0 ? -0.33 : 0.33) : 0;
+  const o = slotCount > 1 ? (slot === 0 ? -0.36 : 0.36) : 0;
   return { x: cell.x + cell.ax * o, z: cell.z + cell.az * o };
 }
 
