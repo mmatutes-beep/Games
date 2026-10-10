@@ -2,12 +2,12 @@
 import * as THREE from 'three';
 
 export const PLUSHES = [
-  { id: 'pinguino', name: 'Pingüino' },
-  { id: 'conejita', name: 'Conejita' },
-  { id: 'unicornio', name: 'Unicornio' },
+  { id: 'pinguino', name: 'Pingu' },
+  { id: 'conejita', name: 'Lulu' },
+  { id: 'panda', name: 'Panditchka' },
+  { id: 'unicornio', name: 'Moni' },
   { id: 'tigre', name: 'Tigre' },
   { id: 'osito', name: 'Osito' },
-  { id: 'panda', name: 'Panda' },
 ];
 
 // ------------------------------------------------------------------
@@ -80,12 +80,12 @@ function getStripes() {
   return stripeTex;
 }
 
-function fabric(color, map = getFur()) {
+function fabric(color, map = getFur(), bump = getFur(), bumpScale = 1.2) {
   return new THREE.MeshPhysicalMaterial({
     color,
     map,
-    bumpMap: getFur(),
-    bumpScale: 1.2,
+    bumpMap: bump,
+    bumpScale,
     roughness: 1,
     sheen: 1,
     sheenRoughness: 0.55,
@@ -95,7 +95,6 @@ function fabric(color, map = getFur()) {
 
 const shiny = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.18, metalness: 0 });
 const felt = (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.95 });
-const satin = (color) => new THREE.MeshPhysicalMaterial({ color, roughness: 0.35, sheen: 1, sheenColor: new THREE.Color('#ffffff') });
 
 const SPH = new THREE.SphereGeometry(1, 32, 22);
 
@@ -112,6 +111,127 @@ function ball(mat, r, x, y, z, sx = 1, sy = 1, sz = 1) {
   return m;
 }
 
+// Punto de ganchillo: filas de bucles abultados.
+let crochetTex = null;
+function getCrochet() {
+  crochetTex ||= canvasTex(256, (ctx, S) => {
+    ctx.fillStyle = '#c4c4c4';
+    ctx.fillRect(0, 0, S, S);
+    const cw = 16, rh = 14;
+    for (let r = 0; r * rh < S + rh; r++) {
+      for (let c = -1; c * cw < S + cw; c++) {
+        const x = c * cw + (r % 2) * cw / 2, y = r * rh;
+        const g = ctx.createRadialGradient(x - 2, y - 2, 1, x, y, 9);
+        g.addColorStop(0, '#ffffff');
+        g.addColorStop(0.6, '#eeeeee');
+        g.addColorStop(1, '#b0b0b0');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.ellipse(x, y, 7.5, 6.5, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }, 2.5);
+  return crochetTex;
+}
+
+// Purpurina: motas brillantes de colores.
+let glitterTex = null;
+function getGlitter() {
+  glitterTex ||= canvasTex(128, (ctx, S) => {
+    ctx.fillStyle = '#b8b8b8';
+    ctx.fillRect(0, 0, S, S);
+    for (let i = 0; i < 1400; i++) {
+      const v = 150 + Math.random() * 105;
+      ctx.fillStyle = Math.random() < 0.25 ? '#ffffff' : `rgb(${v},${v},${v})`;
+      ctx.fillRect(Math.random() * S, Math.random() * S, 1.5, 1.5);
+    }
+  }, 4);
+  return glitterTex;
+}
+
+const crochet = (color) => fabric(color, getCrochet(), getCrochet(), 2.5);
+const glitter = (color) => new THREE.MeshStandardMaterial({
+  color, map: getGlitter(), bumpMap: getGlitter(), bumpScale: 0.6, roughness: 0.3, metalness: 0.6,
+});
+
+// Ojo de peluche tipo canica: cúpula negra brillante con aro de purpurina.
+function glitterEye(parent, x, y, z, r, rim) {
+  const dome = ball(shiny('#111015'), r, x, y, z, 1, 1.08, 0.55);
+  parent.add(dome);
+  const rims = Array.isArray(rim) ? rim : [rim];
+  const seg = (Math.PI * 2) / rims.length;
+  rims.forEach((c, i) => {
+    const t = part(new THREE.TorusGeometry(r * 1.02, r * 0.2, 8, 24, seg), glitter(c), x, y, z - r * 0.08);
+    t.rotation.z = i * seg + Math.PI / 2;
+    t.scale.y = 1.08;
+    parent.add(t);
+  });
+  parent.add(ball(shiny('#ffffff'), r * 0.28, x + r * 0.35, y + r * 0.42, z + r * 0.42));
+  parent.add(ball(shiny('#ffffff'), r * 0.12, x - r * 0.35, y - r * 0.35, z + r * 0.5));
+}
+
+// Puntada bordada: un hilo fino entre dos puntos.
+function stitch(parent, a, b, color = '#1f1a1a', r = 0.008) {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b);
+  const m = part(new THREE.CylinderGeometry(r, r, A.distanceTo(B), 5), shiny(color));
+  m.position.copy(A).add(B).multiplyScalar(0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), B.clone().sub(A).normalize());
+  parent.add(m);
+}
+
+// Cara bordada de Panditchka, pintada sobre una textura equirectangular.
+let pandiFace = null;
+function getPandiFace() {
+  if (pandiFace) return pandiFace;
+  const W = 1024, H = 512;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#f4f1ea';
+  ctx.fillRect(0, 0, W, H);
+  furStrokes(ctx, W, 26000, 215);
+  ctx.globalAlpha = 1;
+  const cx = W * 0.25, cy = H * 0.5; // el frente de la esfera
+  for (const s of [-1, 1]) {
+    const ex = cx + s * 68, ey = cy - 6;
+    ctx.fillStyle = '#8f8f94';
+    ctx.beginPath(); ctx.ellipse(ex, ey, 38, 48, s * -0.12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#4a3430';
+    ctx.beginPath(); ctx.ellipse(ex, ey, 29, 39, s * -0.12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.ellipse(ex + 3, ey - 14, 10, 12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(ex - 10, ey + 12, 4, 4.5, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  // nariz
+  ctx.fillStyle = '#3d3b42';
+  ctx.beginPath();
+  ctx.moveTo(cx - 12, cy + 30); ctx.quadraticCurveTo(cx, cy + 22, cx + 12, cy + 30);
+  ctx.quadraticCurveTo(cx + 4, cy + 46, cx, cy + 46); ctx.quadraticCurveTo(cx - 4, cy + 46, cx - 12, cy + 30);
+  ctx.fill();
+  // boca abierta con lengua
+  ctx.fillStyle = '#3a2422';
+  ctx.beginPath();
+  ctx.moveTo(cx - 17, cy + 62); ctx.lineTo(cx + 17, cy + 62);
+  ctx.quadraticCurveTo(cx + 14, cy + 88, cx, cy + 88); ctx.quadraticCurveTo(cx - 14, cy + 88, cx - 17, cy + 62);
+  ctx.fill();
+  ctx.fillStyle = '#e8708f';
+  ctx.beginPath(); ctx.ellipse(cx + 1, cy + 81, 9, 6, 0, 0, Math.PI * 2); ctx.fill();
+  pandiFace = new THREE.CanvasTexture(cv);
+  pandiFace.colorSpace = THREE.SRGBColorSpace;
+  return pandiFace;
+}
+
+// Grupo sobre la peana: stand (fijo) > body (salta y se aplasta).
+function rig(g) {
+  const stand = new THREE.Group();
+  stand.position.y = 0.08;
+  g.add(stand);
+  const body = new THREE.Group();
+  stand.add(body);
+  return body;
+}
+
 // ------------------------------------------------------------------
 // Piezas comunes
 // ------------------------------------------------------------------
@@ -124,20 +244,6 @@ function eye(parent, x, y, z, r = 0.07) {
   parent.add(e);
   parent.add(ball(white, r * 0.36, x + r * 0.3, y + r * 0.4, z + r * 0.45));
   parent.add(ball(white, r * 0.16, x - r * 0.3, y - r * 0.35, z + r * 0.5));
-}
-
-// Ojo cerrado y feliz: un arco con pestañas.
-function happyEye(parent, x, y, z, s) {
-  const ink = shiny('#2a1d1a');
-  const arc = part(new THREE.TorusGeometry(0.06, 0.012, 6, 16, Math.PI), ink, x, y, z);
-  parent.add(arc);
-  for (const k of [0.25, 0.5, 0.75]) {
-    const a = Math.PI * k;
-    const lash = part(new THREE.CylinderGeometry(0.007, 0.007, 0.05, 4), ink,
-      x + Math.cos(a) * 0.075 * (s > 0 ? 1 : 1), y + Math.sin(a) * 0.075, z);
-    lash.rotation.z = a - Math.PI / 2;
-    parent.add(lash);
-  }
 }
 
 function cheeks(parent, x, y, z) {
@@ -192,104 +298,140 @@ function skeleton(g, main, belly, { limbs = main, feet = main } = {}) {
 // ------------------------------------------------------------------
 
 const BUILDERS = {
-  pinguino(g, team) {
-    const navy = fabric('#2b3550'), white = fabric('#f7f4ee'), orange = felt('#f39a2b');
-    const sk = skeleton(g, navy, white, { feet: orange });
-    const { head, armL, armR } = sk;
-    // aletas planas
-    for (const a of [armL, armR]) a.scale.set(0.05, 0.2, 0.12);
-    head.add(ball(navy, 0.42, 0, 0, 0, 1, 0.95, 0.95));
-    // carita blanca en forma de corazón
-    head.add(ball(white, 0.2, -0.1, -0.02, 0.24, 1, 1.15, 0.7));
-    head.add(ball(white, 0.2, 0.1, -0.02, 0.24, 1, 1.15, 0.7));
-    head.add(ball(white, 0.17, 0, -0.12, 0.25, 1.2, 0.8, 0.7));
-    const beak = part(new THREE.ConeGeometry(0.06, 0.14, 16), orange, 0, -0.08, 0.43);
-    beak.rotation.x = Math.PI / 2;
-    beak.scale.set(1.4, 1, 0.7);
-    head.add(beak);
-    eye(head, -0.1, 0.04, 0.39, 0.06);
-    eye(head, 0.1, 0.04, 0.39, 0.06);
-    cheeks(head, 0.2, -0.08, 0.34);
-    // gorrito de pompón no; pajarita del equipo
-    const tie = bow(felt(team), 0.9);
-    tie.position.set(0, 0.74, 0.27);
-    sk.body.add(tie);
-    return sk;
+  // Pingu: azul eléctrico, cara blanca en dos lóbulos con la «V» azul en medio.
+  pinguino() {
+    const g = this;
+    const blue = fabric('#2a9bff'), white = fabric('#f6f3ec'), orange = felt('#f8a35a');
+    const body = rig(g);
+    body.add(ball(blue, 0.43, 0, 0.42, 0, 1, 0.95, 0.92));
+    body.add(ball(white, 0.33, 0, 0.38, 0.17, 1, 1.12, 0.78)); // barriga
+    body.add(ball(orange, 0.12, -0.17, 0.05, 0.3, 1, 0.65, 1.3));
+    body.add(ball(orange, 0.12, 0.17, 0.05, 0.3, 1, 0.65, 1.3));
+    const armL = ball(blue, 1, -0.4, 0.4, -0.04, 0.08, 0.22, 0.16);
+    const armR = ball(blue, 1, 0.4, 0.4, -0.04, 0.08, 0.22, 0.16);
+    armL.rotation.z = 0.12; armR.rotation.z = -0.12;
+    body.add(armL, armR);
+    const head = new THREE.Group();
+    head.position.y = 1.0;
+    body.add(head);
+    head.add(ball(blue, 0.45, 0, 0, 0, 1.02, 0.95, 0.95));
+    head.add(ball(white, 0.22, -0.15, -0.02, 0.27, 1, 1.25, 0.75));
+    head.add(ball(white, 0.22, 0.15, -0.02, 0.27, 1, 1.25, 0.75));
+    head.add(ball(white, 0.26, 0, -0.17, 0.25, 1.3, 0.8, 0.75));
+    glitterEye(head, -0.16, 0.02, 0.4, 0.115, '#4fb4f2');
+    glitterEye(head, 0.16, 0.02, 0.4, 0.115, '#4fb4f2');
+    head.add(ball(orange, 0.1, 0, -0.08, 0.45, 1, 0.8, 1.25));
+    stitch(head, [-0.06, -0.08, 0.57], [0.06, -0.08, 0.57], '#e0863e', 0.006);
+    return { body, head, armL, armR };
   },
 
-  conejita(g, team) {
-    const cream = fabric('#f4ece6'), pink = felt('#f6b9c9'), light = fabric('#fff9f6');
-    const sk = skeleton(g, cream, light);
-    const { head } = sk;
-    head.add(ball(cream, 0.4, 0, 0, 0, 1.05, 0.95, 0.95));
-    const earGeo = new THREE.CapsuleGeometry(0.085, 0.42, 6, 14);
-    [-1, 1].forEach((s) => {
-      const ear = part(earGeo, cream, s * 0.14, 0.5, -0.05);
-      ear.rotation.z = -s * 0.2;
-      ear.scale.set(1, 1, 0.55);
-      if (s > 0) { ear.rotation.z = -1.0; ear.position.set(0.32, 0.36, -0.02); } // una oreja caída
-      const inner = part(earGeo, pink, 0, 0, 0.08);
-      inner.scale.set(0.55, 0.85, 0.3);
+  // Lulu: conejita de ganchillo con cabeza de huevo y una oreja caída.
+  conejita() {
+    const g = this;
+    const grey = crochet('#cfc8c2'), cream = crochet('#f7f2e8'), pink = felt('#f3a7a4');
+    const body = rig(g);
+    body.add(ball(grey, 0.29, 0, 0.42, 0, 1, 1.25, 0.9));
+    // piernas sentadas hacia delante con pies crema
+    for (const s of [-1, 1]) {
+      const leg = part(new THREE.CapsuleGeometry(0.075, 0.2, 6, 12), grey, s * 0.15, 0.11, 0.14);
+      leg.rotation.x = Math.PI / 2;
+      body.add(leg);
+      body.add(ball(cream, 0.12, s * 0.16, 0.11, 0.33, 0.95, 0.95, 1.15));
+    }
+    // brazos largos con manitas crema
+    const arms = [-1, 1].map((s) => {
+      const arm = new THREE.Group();
+      arm.position.set(s * 0.25, 0.68, 0.04);
+      arm.rotation.z = s * 0.4;
+      const a = part(new THREE.CapsuleGeometry(0.06, 0.26, 6, 12), grey, 0, -0.17, 0);
+      arm.add(a);
+      arm.add(ball(cream, 0.09, 0, -0.34, 0.01, 1, 1.15, 1));
+      body.add(arm);
+      return arm;
+    });
+    const head = new THREE.Group();
+    head.position.y = 1.12;
+    body.add(head);
+    head.add(ball(grey, 0.38, 0, 0, 0, 0.88, 1.12, 0.88));
+    head.add(ball(cream, 0.17, 0, -0.2, 0.25, 1.15, 0.95, 0.85)); // hocico
+    const nose = part(new THREE.ConeGeometry(0.05, 0.07, 3), pink, 0, -0.12, 0.39);
+    nose.rotation.set(Math.PI / 2 + 0.3, 0, Math.PI);
+    head.add(nose);
+    stitch(head, [0, -0.16, 0.395], [0.01, -0.27, 0.37]);
+    for (const s of [-1, 1]) {
+      head.add(ball(shiny('#16141a'), 0.062, s * 0.15, -0.02, 0.29, 1, 1, 0.65));
+      head.add(ball(shiny('#ffffff'), 0.016, s * 0.15 + 0.02, 0.0, 0.33));
+      // cejas bordadas, más altas por dentro: cara de buena
+      stitch(head, [s * 0.09, 0.12, 0.3], [s * 0.21, 0.08, 0.26]);
+    }
+    const earGeo = new THREE.SphereGeometry(1, 24, 16);
+    const earL = part(earGeo, grey, -0.11, 0.62, -0.02);
+    earL.scale.set(0.13, 0.3, 0.05);
+    earL.rotation.z = 0.12;
+    const earR = part(earGeo, grey, 0.3, 0.45, -0.02);
+    earR.scale.set(0.13, 0.26, 0.05);
+    earR.rotation.z = -0.95;
+    head.add(earL, earR);
+    return { body, head, armL: arms[0], armR: arms[1] };
+  },
+
+  // Moni: unicornio lila con ojos de purpurina arcoíris.
+  unicornio() {
+    const g = this;
+    const lilac = fabric('#b98ad9'), cream = fabric('#efe5d9'), hoof = glitter('#a774c4');
+    const pinkGlit = glitter('#e7a6d6');
+    const rainbow = ['#ef5b5b', '#f7a440', '#f4e04d', '#7ed957', '#4aa3df', '#9b6ad6'];
+    const body = rig(g);
+    body.add(ball(lilac, 0.27, 0, 0.36, 0, 1, 1.2, 1.1));
+    // patas delanteras rectas y traseras dobladas, con pezuñas de purpurina
+    for (const s of [-1, 1]) {
+      const fl = part(new THREE.CapsuleGeometry(0.07, 0.16, 6, 12), lilac, s * 0.1, 0.2, 0.17);
+      body.add(fl);
+      body.add(ball(hoof, 0.085, s * 0.1, 0.05, 0.21, 1, 0.75, 1.15));
+      body.add(ball(lilac, 0.13, s * 0.21, 0.13, -0.02, 0.8, 0.75, 1.3));
+      body.add(ball(hoof, 0.08, s * 0.22, 0.05, 0.14, 1, 0.75, 1.1));
+    }
+    // cola arcoíris
+    ['#7ed957', '#4aa3df', '#9b6ad6'].forEach((c, i) => body.add(ball(fabric(c), 0.075, 0, 0.22 - i * 0.05, -0.3 - i * 0.06)));
+    const head = new THREE.Group();
+    head.position.y = 0.98;
+    body.add(head);
+    head.add(ball(lilac, 0.41, 0, 0, 0, 1, 0.98, 0.95));
+    head.add(ball(cream, 0.12, 0, -0.2, 0.33, 1.2, 0.9, 0.95)); // hocico
+    const grin = part(new THREE.TorusGeometry(0.055, 0.009, 6, 16, Math.PI * 0.8), shiny('#e36d8f'), 0, -0.21, 0.44);
+    grin.rotation.z = Math.PI + Math.PI * 0.1;
+    head.add(grin);
+    head.add(ball(shiny('#e36d8f'), 0.014, -0.04, -0.15, 0.44));
+    head.add(ball(shiny('#e36d8f'), 0.014, 0.04, -0.15, 0.44));
+    glitterEye(head, -0.15, 0.01, 0.33, 0.13, rainbow);
+    glitterEye(head, 0.15, 0.01, 0.33, 0.13, rainbow);
+    // cuerno crema con espiral granate
+    const horn = new THREE.Group();
+    horn.position.set(0, 0.46, 0.1);
+    horn.rotation.x = 0.2;
+    horn.add(part(new THREE.ConeGeometry(0.095, 0.4, 20), cream));
+    const pts = [];
+    for (let i = 0; i <= 60; i++) {
+      const t = i / 60, a = t * Math.PI * 2 * 4, r = 0.097 * (1 - t) + 0.004;
+      pts.push(new THREE.Vector3(Math.cos(a) * r, -0.2 + t * 0.4, Math.sin(a) * r));
+    }
+    horn.add(part(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 120, 0.007, 5), shiny('#a3263c')));
+    head.add(horn);
+    for (const s of [-1, 1]) {
+      const ear = part(new THREE.ConeGeometry(0.085, 0.22, 14), lilac, s * 0.24, 0.35, -0.04);
+      ear.rotation.z = -s * 0.3;
+      ear.scale.z = 0.55;
+      const inner = part(new THREE.ConeGeometry(0.085, 0.22, 14), pinkGlit, 0, -0.01, 0.04);
+      inner.scale.set(0.6, 0.8, 0.35);
       ear.add(inner);
       head.add(ear);
+    }
+    // crin: un mechón arcoíris desde la coronilla hacia la nuca
+    rainbow.slice().reverse().forEach((c, i) => {
+      const a = 0.35 + i * 0.3;
+      head.add(ball(fabric(c), 0.085, 0, Math.cos(a) * 0.41, -Math.sin(a) * 0.41 + 0.02, 0.9, 1, 1.1));
     });
-    const ribbon = bow(satin(team), 1.1);
-    ribbon.position.set(-0.17, 0.33, 0.12);
-    ribbon.rotation.z = 0.3;
-    head.add(ribbon);
-    head.add(ball(light, 0.1, -0.06, -0.1, 0.3, 1, 0.8, 0.8));
-    head.add(ball(light, 0.1, 0.06, -0.1, 0.3, 1, 0.8, 0.8));
-    head.add(ball(pink, 0.04, 0, -0.04, 0.38, 1.3, 0.9, 0.9));
-    eye(head, -0.14, 0.05, 0.33);
-    eye(head, 0.14, 0.05, 0.33);
-    cheeks(head, 0.23, -0.07, 0.3);
-    // colita de algodón
-    sk.body.add(ball(light, 0.11, 0, 0.3, -0.32));
-    return sk;
-  },
-
-  unicornio(g, team) {
-    const white = fabric('#fbf8f4'), lilac = fabric('#e5d4f2'), gold = shiny('#f3c34f');
-    const mane = ['#ff9ec7', '#c8a7f2', '#8fd8e8', '#ffe08a', '#a8e6b4'].map((c) => fabric(c));
-    const sk = skeleton(g, white, null, { feet: lilac });
-    const { head } = sk;
-    head.add(ball(white, 0.4, 0, 0, 0, 1, 0.95, 0.95));
-    head.add(ball(lilac, 0.18, 0, -0.14, 0.27, 1.2, 0.85, 0.85)); // hocico
-    head.add(ball(shiny('#c28fb5'), 0.02, -0.06, -0.12, 0.42));
-    head.add(ball(shiny('#c28fb5'), 0.02, 0.06, -0.12, 0.42));
-    // cuerno en espiral
-    const horn = part(new THREE.ConeGeometry(0.1, 0.42, 20), gold, 0, 0.44, 0.14);
-    horn.rotation.x = 0.25;
-    for (let i = 0; i < 4; i++) {
-      const ring = part(new THREE.TorusGeometry(0.088 - i * 0.019, 0.014, 6, 20), gold, 0, -0.15 + i * 0.09, 0);
-      ring.rotation.x = Math.PI / 2 + 0.25;
-      horn.add(ring);
-    }
-    head.add(horn);
-    const earGeo = new THREE.ConeGeometry(0.075, 0.18, 12);
-    for (const s of [-1, 1]) {
-      const ear = part(earGeo, white, s * 0.24, 0.33, -0.02);
-      ear.rotation.z = -s * 0.4;
-      ear.scale.z = 0.6;
-      head.add(ear);
-    }
-    // crin de colores: mechones por la coronilla y la nuca
-    for (let i = 0; i < 9; i++) {
-      const t = i / 8;
-      const a = -0.2 + t * 2.1;
-      head.add(ball(mane[i % mane.length], 0.1 - t * 0.02, 0.03 * Math.sin(i * 2), 0.38 * Math.cos(a), 0.06 - 0.4 * Math.sin(a)));
-    }
-    head.add(ball(mane[0], 0.09, -0.12, 0.36, 0.18));
-    head.add(ball(mane[2], 0.08, 0.08, 0.38, 0.2));
-    // cola
-    for (let i = 0; i < 4; i++) sk.body.add(ball(mane[i], 0.09, (i - 1.5) * 0.04, 0.35 - i * 0.07, -0.34 - i * 0.04));
-    happyEye(head, -0.15, 0.06, 0.36, -1);
-    happyEye(head, 0.15, 0.06, 0.36, 1);
-    cheeks(head, 0.24, -0.06, 0.31);
-    const collar = part(new THREE.TorusGeometry(0.24, 0.045, 10, 28), felt(team), 0, 0.74, 0);
-    collar.rotation.x = Math.PI / 2;
-    sk.body.add(collar);
-    return sk;
+    return { body, head, armL: null, armR: null };
   },
 
   tigre(g, team) {
@@ -361,28 +503,30 @@ const BUILDERS = {
     return sk;
   },
 
-  panda(g, team) {
-    const white = fabric('#f8f6f1'), black = fabric('#24221f');
-    const sk = skeleton(g, white, null, { limbs: black, feet: black });
-    const { head, body } = sk;
-    head.add(ball(white, 0.42, 0, 0, 0, 1.08, 0.95, 0.95));
-    for (const s of [-1, 1]) {
-      head.add(ball(black, 0.13, s * 0.3, 0.28, -0.02, 1, 1, 0.65));
-      const patch = ball(black, 0.1, s * 0.15, 0.02, 0.32, 1, 1.35, 0.5);
-      patch.rotation.z = s * 0.6;
-      head.add(patch);
-    }
-    head.add(ball(white, 0.13, 0, -0.14, 0.31, 1.25, 0.8, 0.8));
-    head.add(ball(shiny('#1d1b19'), 0.045, 0, -0.08, 0.43, 1.3, 0.85, 0.8));
-    smile(head, -0.17, 0.42, 0.035);
-    eye(head, -0.15, 0.04, 0.37, 0.05);
-    eye(head, 0.15, 0.04, 0.37, 0.05);
-    cheeks(head, 0.26, -0.1, 0.3);
-    const ribbon = bow(satin(team), 1.3);
-    ribbon.position.set(0.2, 0.33, 0.14);
-    ribbon.rotation.z = -0.35;
+  // Panditchka: una bola blanca con la cara bordada y un gran lazo fucsia.
+  panda() {
+    const g = this;
+    const grey = fabric('#4b4a52');
+    const face = new THREE.MeshPhysicalMaterial({
+      map: getPandiFace(), bumpMap: getFur(), bumpScale: 0.6, roughness: 1, sheen: 1, sheenRoughness: 0.6,
+      sheenColor: new THREE.Color('#ffffff'),
+    });
+    const body = rig(g);
+    for (const s of [-1, 1]) body.add(ball(grey, 0.13, s * 0.17, 0.08, 0.04, 1, 1.05, 1.05));
+    const head = new THREE.Group();
+    head.position.y = 0.6;
+    body.add(head);
+    head.add(ball(face, 0.52, 0, 0, 0, 1, 0.95, 0.95));
+    for (const s of [-1, 1]) head.add(ball(grey, 0.1, s * 0.37, 0.36, -0.02, 1, 1, 0.6));
+    const armL = ball(grey, 0.1, -0.5, -0.12, 0.1, 0.8, 1.35, 0.85);
+    const armR = ball(grey, 0.1, 0.5, -0.12, 0.1, 0.8, 1.35, 0.85);
+    armL.rotation.z = 0.7; armR.rotation.z = -0.7;
+    head.add(armL, armR);
+    const ribbon = bow(fabric('#e2447a'), 2.4);
+    ribbon.position.set(0.1, 0.5, -0.02);
+    ribbon.rotation.set(-0.35, 0, -0.15);
     head.add(ribbon);
-    return sk;
+    return { body, head, armL, armR };
   },
 };
 
@@ -400,7 +544,7 @@ export function makePlush(kind, teamInk, teamSoft) {
   rim.rotation.x = Math.PI / 2;
   g.add(rim);
 
-  const sk = build(g, teamInk);
+  const sk = build.call(g, g, teamInk);
 
   // anillo de selección (oculto por defecto)
   const ring = new THREE.Mesh(

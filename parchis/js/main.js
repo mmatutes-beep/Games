@@ -8,7 +8,7 @@ import { Dice } from './dice.js';
 
 const $ = (id) => document.getElementById(id);
 const TOP = 0.06; // grosor del papel
-const DEFAULT_PLUSH = ['osito', 'conejita', 'unicornio', 'panda'];
+const DEFAULT_PLUSH = ['pinguino', 'conejita', 'panda', 'unicornio'];
 
 // ------------------------------------------------------------------
 // Escena
@@ -490,11 +490,8 @@ async function celebrate(id) {
   setMsg(`¡${playerLabel(pl)} gana la partida!`);
   $('win-title').textContent = `¡Gana ${pl.name}!`;
   $('win-title').style.color = COLORS[pl.color].ink;
-  const plush = PLUSHES.find((p) => p.id === pl.plush).name.toLowerCase();
-  const fem = plush.endsWith('a');
-  const col = COLORS[pl.color].name.toLowerCase();
-  const colPl = col.endsWith('o') ? col.slice(0, -1) + (fem ? 'as' : 'os') : col.endsWith('l') ? col + 'es' : col + 's';
-  $('win-text').textContent = `${fem ? 'Las cuatro' : 'Los cuatro'} ${plush}s ${colPl} ya están en la meta, ${fem ? 'calentitas' : 'calentitos'}.`;
+  const plush = PLUSHES.find((p) => p.id === pl.plush).name;
+  $('win-text').textContent = `Las cuatro fichas de ${plush} ya están en la meta.`;
   setTimeout(() => { if (id === runId) $('win').classList.remove('hidden'); }, 1200);
   speed = 1;
   const meshes = pl.pieces.map((pc) => pieceMesh.get(pc));
