@@ -89,6 +89,29 @@ button, input, select { font-family: var(--hand); color: var(--ink); }
   padding: 2px 0;
 }
 .seat input { grid-column: 2 / 4; }
+.seat .plush {
+  display: flex; align-items: center; gap: 4px; min-width: 0;
+  background: transparent; border: 2px dashed var(--ink-soft); border-radius: 10px;
+  font-size: 22px; font-weight: 700; padding: 0 8px 0 2px; cursor: pointer; text-align: left;
+}
+.seat .plush img { width: 44px; height: 44px; flex: none; }
+.seat .plush span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat .plush:hover { border-style: solid; }
+.seat .plush:focus-visible { outline: 3px dashed var(--ink); outline-offset: 2px; }
+
+/* Galería de peluches */
+#picker { z-index: 15; }
+.picker-card { width: min(520px, 100%); transform: rotate(0.5deg); }
+#picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: 8px; }
+.pick {
+  display: flex; flex-direction: column; align-items: center;
+  background: transparent; border: 2px solid transparent; border-radius: 12px;
+  font-size: 22px; font-weight: 700; padding: 4px; cursor: pointer;
+}
+.pick img { width: 96px; height: 96px; }
+.pick:hover { background: rgba(29, 47, 120, 0.06); }
+.pick[aria-pressed="true"] { border-color: var(--ink); background: rgba(29, 47, 120, 0.08); border-radius: 255px 18px 225px 18px / 18px 225px 18px 255px; }
+.pick:focus-visible { outline: 3px dashed var(--ink); outline-offset: 2px; }
 .seat.off .who ~ * { opacity: 0.35; }
 
 .rules { font-size: 20px; margin: 10px 0 4px; }
@@ -148,5 +171,7 @@ button, input, select { font-family: var(--hand); color: var(--ink); }
   .pen-btn { font-size: 24px; }
   .seat { grid-template-columns: 78px 1fr 1fr; }
   .seat .color { font-size: 22px; }
-  .seat select, .seat input { font-size: 19px; }
+  .seat select, .seat input, .seat .plush { font-size: 19px; }
+  .seat .plush img { width: 36px; height: 36px; }
+  .pick img { width: 80px; height: 80px; }
 }

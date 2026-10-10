@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from '../vendor/OrbitControls.js';
 import { COLORS, HOME, META, Game, cellKey } from './rules.js';
 import { drawBoard, piecePosition, PAPER } from './board.js';
-import { makePlush, PLUSHES } from './plush.js';
+import { makePlush, PLUSHES, plushThumbnails } from './plush.js';
 import { Dice } from './dice.js';
 
 const $ = (id) => document.getElementById(id);
@@ -542,12 +542,12 @@ function buildSetup() {
         <option value="cpu">Ordenador</option>
         <option value="off">No juega</option>
       </select>
-      <select class="plush" aria-label="Peluche ${c.name}">
-        ${PLUSHES.map((p) => `<option value="${p.id}">${p.name}</option>`).join('')}
-      </select>
+      <button type="button" class="plush" aria-label="Peluche de ${c.name}"></button>
       <input class="name" maxlength="14" aria-label="Nombre ${c.name}">`;
     row.querySelector('.who').value = s.who;
-    row.querySelector('.plush').value = s.plush;
+    const plushBtn = row.querySelector('.plush');
+    setPlush(plushBtn, s.plush);
+    plushBtn.addEventListener('click', () => openPicker(plushBtn, c.name));
     row.querySelector('.name').value = s.name;
     const sync = () => row.classList.toggle('off', row.querySelector('.who').value === 'off');
     row.querySelector('.who').addEventListener('change', sync);
@@ -556,10 +556,47 @@ function buildSetup() {
   });
 }
 
+let thumbs = {};
+
+function setPlush(btn, id) {
+  const p = PLUSHES.find((x) => x.id === id) || PLUSHES[0];
+  btn.dataset.value = p.id;
+  btn.innerHTML = `<img src="${thumbs[p.id] || ''}" alt=""><span>${p.name}</span>`;
+}
+
+// Galería para elegir peluche, con miniaturas.
+function openPicker(btn, colorName) {
+  const box = $('picker');
+  $('picker-title').textContent = `Peluche para ${colorName}`;
+  const grid = $('picker-grid');
+  grid.innerHTML = '';
+  for (const p of PLUSHES) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'pick';
+    card.setAttribute('aria-pressed', String(p.id === btn.dataset.value));
+    card.innerHTML = `<img src="${thumbs[p.id] || ''}" alt=""><span>${p.name}</span>`;
+    card.addEventListener('click', () => { setPlush(btn, p.id); close(); });
+    grid.appendChild(card);
+  }
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const onBackdrop = (e) => { if (e.target === box) close(); };
+  function close() {
+    box.classList.add('hidden');
+    window.removeEventListener('keydown', onKey);
+    box.removeEventListener('click', onBackdrop);
+    btn.focus();
+  }
+  window.addEventListener('keydown', onKey);
+  box.addEventListener('click', onBackdrop);
+  box.classList.remove('hidden');
+  grid.querySelector('[aria-pressed="true"]')?.focus();
+}
+
 function readSetup() {
   return [...$('seats').children].map((row, i) => ({
     who: row.querySelector('.who').value,
-    plush: row.querySelector('.plush').value,
+    plush: row.querySelector('.plush').dataset.value,
     name: row.querySelector('.name').value.trim() || COLORS[i].name,
   }));
 }
@@ -703,6 +740,7 @@ async function init() {
   } catch { /* sin fuente, usamos la de reserva */ }
   drawBoard(boardCanvas, {});
   boardTex.needsUpdate = true;
+  thumbs = plushThumbnails(120);
   buildSetup();
   $('loading').remove();
   requestAnimationFrame(loop);

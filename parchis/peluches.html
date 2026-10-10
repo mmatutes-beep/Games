@@ -1,0 +1,223 @@
+<meta charset="utf-8">
+<title>Los peluches</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.min.js" } }</script>
+<style>
+  /* Hoja de libreta a pantalla completa: escena 3D arriba, fila de peluches abajo. */
+  :root {
+    --paper: #f7f2e4;
+    --rule: rgba(110, 150, 210, 0.3);
+    --margin: rgba(220, 80, 80, 0.45);
+    --ink: #1d2f78;
+    --ink-soft: rgba(29, 47, 120, 0.6);
+    --chip: rgba(29, 47, 120, 0.08);
+    --hand: "Caveat", "Comic Sans MS", "Bradley Hand", cursive;
+    color-scheme: light;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background:
+      linear-gradient(90deg, transparent 28px, var(--margin) 28px, var(--margin) 30px, transparent 30px),
+      repeating-linear-gradient(0deg, transparent 0 31px, var(--rule) 31px 32px),
+      var(--paper);
+    color: var(--ink);
+    font-family: var(--hand);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  header { padding-block: 10px 0; padding-inline: 44px 16px; display: flex; align-items: baseline; gap: 4px 16px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 40px; font-weight: 700; line-height: 1; text-wrap: balance; }
+  .hint { font-size: 20px; color: var(--ink-soft); }
+  #stage { flex: 1; min-height: 0; position: relative; }
+  #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+  #stage canvas:active { cursor: grabbing; }
+  #name {
+    position: absolute; left: 0; right: 0; bottom: 6px; margin: 0; text-align: center;
+    font-size: 44px; font-weight: 700; pointer-events: none;
+  }
+  .teams { position: absolute; top: 8px; right: 16px; display: flex; gap: 8px; align-items: center; font-size: 19px; }
+  .teams button {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--ink); padding: 0; cursor: pointer;
+    background: var(--c);
+  }
+  .teams button[aria-pressed="true"] { outline: 2px dashed var(--ink); outline-offset: 3px; }
+  nav {
+    display: flex; gap: 6px; overflow-x: auto; padding-block: 8px 12px; padding-inline: 16px;
+    scrollbar-width: thin;
+  }
+  nav button {
+    flex: none; display: flex; flex-direction: column; align-items: center; gap: 0;
+    background: transparent; border: 2px solid transparent; border-radius: 12px;
+    font-family: var(--hand); font-size: 21px; font-weight: 700; color: var(--ink);
+    padding: 2px 6px 4px; cursor: pointer;
+  }
+  nav button img { width: 64px; height: 64px; }
+  nav button.all { justify-content: center; min-width: 76px; font-size: 24px; }
+  nav button[aria-pressed="true"] { border-color: var(--ink); background: var(--chip); border-radius: 255px 18px 225px 18px / 18px 225px 18px 255px; }
+  nav button:focus-visible, .teams button:focus-visible { outline: 3px dashed var(--ink); outline-offset: 2px; }
+  #loading { position: absolute; inset: 0; display: grid; place-items: center; font-size: 30px; color: var(--ink-soft); }
+  @media (max-width: 520px) {
+    h1 { font-size: 34px; }
+    .hint { font-size: 18px; }
+    #name { font-size: 36px; }
+    .teams span { display: none; }
+  }
+</style>
+
+<header>
+  <h1>Los peluches</h1>
+  <span class="hint">Arrastra para girarlos · pellizca para acercar</span>
+</header>
+<div id="stage">
+  <div class="teams" role="group" aria-label="Color de la peana">
+    <span>Peana:</span>
+    <button type="button" style="--c:#d39b00" data-ink="#d39b00" data-soft="#f3d36b" aria-label="Amarillo" aria-pressed="true"></button>
+    <button type="button" style="--c:#1f4fbf" data-ink="#1f4fbf" data-soft="#8fb0ec" aria-label="Azul" aria-pressed="false"></button>
+    <button type="button" style="--c:#c8322b" data-ink="#c8322b" data-soft="#ee9a92" aria-label="Rojo" aria-pressed="false"></button>
+    <button type="button" style="--c:#2e8b57" data-ink="#2e8b57" data-soft="#93d1a9" aria-label="Verde" aria-pressed="false"></button>
+  </div>
+  <p id="name"></p>
+  <div id="loading">Cosiendo peluches…</div>
+</div>
+<nav id="tabs" aria-label="Elegir peluche"></nav>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from './vendor/OrbitControls.js';
+import { makePlush, PLUSHES, plushThumbnails } from './js/plush.js';
+
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+stage.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight('#fff6e8', '#8a7060', 1.15));
+const sun = new THREE.DirectionalLight('#fff1dc', 2.3);
+sun.position.set(3, 7, 5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -6, right: 6, top: 6, bottom: -6 });
+scene.add(sun);
+const floor = new THREE.Mesh(new THREE.CircleGeometry(12, 48), new THREE.ShadowMaterial({ opacity: 0.18 }));
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.maxPolarAngle = 1.55;
+controls.autoRotate = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+controls.autoRotateSpeed = 1.6;
+
+let team = { ink: '#d39b00', soft: '#f3d36b' };
+let current = 'all';
+let shown = [];
+
+function clear() {
+  for (const m of shown) scene.remove(m);
+  shown = [];
+}
+
+function show(id) {
+  current = id;
+  clear();
+  const ids = id === 'all' ? PLUSHES.map((p) => p.id) : [id];
+  ids.forEach((pid, i) => {
+    const m = makePlush(pid, team.ink, team.soft);
+    m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    m.scale.setScalar(1);
+    if (ids.length > 1) {
+      // en pantallas estrechas, dos filas
+      const cols = columnCount();
+      const row = Math.floor(i / cols), col = i % cols, inRow = Math.min(cols, ids.length - row * cols);
+      m.position.set((col - (inRow - 1) / 2) * 1.35, 0, -row * 2.4);
+    }
+    scene.add(m);
+    shown.push(m);
+  });
+  frame();
+  const p = PLUSHES.find((x) => x.id === id);
+  document.getElementById('name').textContent = p ? p.name : '';
+  for (const b of document.querySelectorAll('nav button')) b.setAttribute('aria-pressed', String(b.dataset.id === id));
+}
+
+function columnCount() {
+  return stage.clientWidth / Math.max(1, stage.clientHeight) < 1 ? 4 : PLUSHES.length;
+}
+
+function frame() {
+  const all = current === 'all';
+  const aspect = stage.clientWidth / Math.max(1, stage.clientHeight);
+  const rows = all ? Math.ceil(PLUSHES.length / columnCount()) : 1;
+  const vfov = THREE.MathUtils.degToRad(camera.fov);
+  const hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
+  // que quepa a lo ancho la fila entera, o un peluche con aire alrededor
+  const halfW = all ? (columnCount() * 1.35) / 2 : 0.85;
+  const halfH = all ? 1.0 + (rows - 1) * 0.9 : 1.05;
+  const dist = Math.max(halfW / Math.tan(hfov / 2), halfH / Math.tan(vfov / 2)) * 1.15;
+  const tz = -(rows - 1) * 1.2;
+  controls.target.set(0, 0.75, tz);
+  camera.position.set(0, 0.75 + dist * (rows > 1 ? 0.8 : 0.22), tz + dist * (rows > 1 ? 0.75 : 1));
+  controls.update();
+}
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / Math.max(1, h);
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(() => { resize(); if (shown.length) show(current); }).observe(stage);
+
+for (const b of document.querySelectorAll('.teams button')) {
+  b.addEventListener('click', () => {
+    team = { ink: b.dataset.ink, soft: b.dataset.soft };
+    for (const x of document.querySelectorAll('.teams button')) x.setAttribute('aria-pressed', String(x === b));
+    show(current);
+  });
+}
+renderer.domElement.addEventListener('pointerdown', () => { controls.autoRotate = false; });
+
+async function init() {
+  try {
+    await Promise.race([document.fonts.load('700 40px "Caveat"'), new Promise((r) => setTimeout(r, 2000))]);
+  } catch { /* fuente de reserva */ }
+  const thumbs = plushThumbnails(128);
+  const nav = document.getElementById('tabs');
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = 'all';
+  allBtn.dataset.id = 'all';
+  allBtn.textContent = 'Todos';
+  nav.append(allBtn);
+  for (const p of PLUSHES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.id = p.id;
+    b.innerHTML = `<img src="${thumbs[p.id]}" alt="">${p.name}`;
+    nav.append(b);
+  }
+  nav.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) show(b.dataset.id);
+  });
+  let start = 'all';
+  if (/^#[a-z]+$/.test(location.hash) && PLUSHES.some((p) => '#' + p.id === location.hash)) start = location.hash.slice(1);
+  resize();
+  show(start);
+  document.getElementById('loading').remove();
+  renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+  window.viewerReady = true;
+}
+init();
+</script>
