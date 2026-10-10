@@ -3,7 +3,7 @@
 ## Parchís de peluches (`parchis/`)
 
 Parchís en 3D (three.js) con el tablero dibujado a boli sobre una hoja de libreta y fichas de peluche:
-los peluches de la casa: Pingu, Lulu, Panditchka, Moni, Tigre, Osito y Winnie. Se juega de 2 a 4 jugadores, personas u ordenador.
+los peluches de la casa: Pingu, Lulu, Pandochka, Moni, Tigri, Milka y Winnie the puss. Se juega de 2 a 4 jugadores, personas u ordenador.
 
 Como usa módulos ES, hay que servirlo por HTTP (abrir `index.html` con doble clic no funciona):
 

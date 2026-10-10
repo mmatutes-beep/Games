@@ -4,11 +4,11 @@ import * as THREE from 'three';
 export const PLUSHES = [
   { id: 'pinguino', name: 'Pingu' },
   { id: 'conejita', name: 'Lulu' },
-  { id: 'panda', name: 'Panditchka' },
+  { id: 'panda', name: 'Pandochka' },
   { id: 'unicornio', name: 'Moni' },
-  { id: 'tigre', name: 'Tigre' },
-  { id: 'osito', name: 'Osito' },
-  { id: 'winnie', name: 'Winnie' },
+  { id: 'tigre', name: 'Tigri' },
+  { id: 'osito', name: 'Milka' },
+  { id: 'winnie', name: 'Winnie the puss' },
 ];
 
 // ------------------------------------------------------------------
@@ -161,7 +161,7 @@ function ringStripe(parent, c, r, y, a0, a1, color, w = 0.013) {
   parent.add(part(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, w, 5), shiny(color)));
 }
 
-// Cara bordada de Panditchka, pintada sobre una textura equirectangular.
+// Cara bordada de Pandochka, pintada sobre una textura equirectangular.
 let pandiFace = null;
 function getPandiFace() {
   if (pandiFace) return pandiFace;
@@ -393,7 +393,7 @@ const BUILDERS = {
     return { body, head, armL: null, armR: null };
   },
 
-  // Tigre: de ganchillo melocotón, hocico crema, nariz grande marrón y rayas bordadas.
+  // Tigri: de ganchillo melocotón, hocico crema, nariz grande marrón y rayas bordadas.
   tigre() {
     const g = this;
     const peach = crochet('#f4a274'), cream = crochet('#f3efe6'), nose = crochet('#3b2a27');
@@ -452,7 +452,7 @@ const BUILDERS = {
     return { body, head, armL: arms[0], armR: arms[1] };
   },
 
-  // Osito: chocolate con gorro lila, bufanda verde anudada y ojos bordados.
+  // Milka: osita chocolate con gorro lila, bufanda verde anudada y ojos bordados.
   osito() {
     const g = this;
     const brown = fabric('#6e4a33'), beige = fabric('#e8c993'), lilac = fabric('#b7a0ec'), green = fabric('#3e9a4c');
@@ -510,7 +510,7 @@ const BUILDERS = {
     return { body, head, armL, armR };
   },
 
-  // Winnie: asomando de su tarro de miel «HUNNY».
+  // Winnie the puss: asomando de su tarro de miel «HUNNY».
   winnie() {
     const g = this;
     const yellow = fabric('#ffe27a'), pot = fabric('#8a6b52'), honey = fabric('#e5e58c'), red = fabric('#d8463c');
@@ -561,7 +561,7 @@ const BUILDERS = {
     return { body, head, armL, armR };
   },
 
-  // Panditchka: una bola blanca con la cara bordada y un gran lazo fucsia.
+  // Pandochka: una bola blanca con la cara bordada y un gran lazo fucsia.
   panda() {
     const g = this;
     const grey = fabric('#4b4a52');
