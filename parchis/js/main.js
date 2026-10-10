@@ -8,7 +8,7 @@ import { Dice } from './dice.js';
 
 const $ = (id) => document.getElementById(id);
 const TOP = 0.06; // grosor del papel
-const DEFAULT_PLUSH = ['oso', 'conejo', 'gato', 'rana'];
+const DEFAULT_PLUSH = ['osito', 'conejita', 'unicornio', 'panda'];
 
 // ------------------------------------------------------------------
 // Escena
@@ -517,7 +517,11 @@ async function celebrate(id) {
 function loadSeats() {
   try {
     const s = JSON.parse(localStorage.getItem('parchis-peluches-seats'));
-    if (Array.isArray(s) && s.length === 4) return s;
+    if (Array.isArray(s) && s.length === 4) {
+      // peluches guardados de versiones anteriores
+      s.forEach((seat, i) => { if (!PLUSHES.some((p) => p.id === seat.plush)) seat.plush = DEFAULT_PLUSH[i]; });
+      return s;
+    }
   } catch { /* sin almacenamiento */ }
   return COLORS.map((c, i) => ({ who: i === 0 ? 'human' : 'cpu', name: i === 0 ? 'Tú' : c.name, plush: DEFAULT_PLUSH[i] }));
 }
