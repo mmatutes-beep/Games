@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Parchís de peluches</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+    { "imports": { "three": "./vendor/three.module.min.js" } }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <!-- Marcador -->
+  <aside id="hud" class="note hidden">
+    <h2>Turnos</h2>
+    <ol id="players"></ol>
+    <div class="hud-actions">
+      <label class="check"><input type="checkbox" id="fast"> CPU rápida</label>
+      <button id="restart" class="link">Nueva partida</button>
+    </div>
+  </aside>
+
+  <!-- Mensajes y botón de tirar -->
+  <div id="bar" class="hidden">
+    <p id="msg"></p>
+    <button id="roll" class="pen-btn" disabled>Tirar el dado</button>
+  </div>
+
+  <!-- Configuración -->
+  <div id="setup" class="overlay">
+    <form class="note card" id="setup-form">
+      <h1>Parchís de peluches</h1>
+      <p class="sub">Elige quién juega con cada color y qué peluche lleva.</p>
+      <div id="seats"></div>
+      <details class="rules">
+        <summary>Reglas rápidas</summary>
+        <ul>
+          <li>Con un <b>5</b> sacas ficha de casa (si puedes, es obligatorio).</li>
+          <li>Con un <b>6</b> repites. Si ya tienes todas fuera, el 6 cuenta como 7.</li>
+          <li>Tres 6 seguidos: la última ficha que moviste vuelve a casa.</li>
+          <li>Comer una ficha te da <b>20</b> casillas; llegar a la meta, <b>10</b>.</li>
+          <li>En los seguros (círculos y estrellas) no se come.</li>
+          <li>Dos fichas del mismo color en una casilla forman una <b>barrera</b>: nadie pasa. Con un 6 tienes que abrirla si puedes.</li>
+        </ul>
+      </details>
+      <p id="setup-error" class="error"></p>
+      <button type="submit" class="pen-btn">¡A jugar!</button>
+    </form>
+  </div>
+
+  <!-- Galería de peluches -->
+  <div id="picker" class="overlay hidden">
+    <div class="note card picker-card" role="dialog" aria-modal="true" aria-labelledby="picker-title">
+      <h2 id="picker-title">Peluche</h2>
+      <div id="picker-grid"></div>
+    </div>
+  </div>
+
+  <!-- Fin de partida -->
+  <div id="win" class="overlay hidden">
+    <div class="note card">
+      <h1 id="win-title"></h1>
+      <p id="win-text" class="sub"></p>
+      <button id="again" class="pen-btn">Otra partida</button>
+    </div>
+  </div>
+
+  <div id="loading">Dibujando el tablero…</div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
