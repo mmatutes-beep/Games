@@ -13,6 +13,10 @@ python3 -m http.server 8000
 # y abre http://localhost:8000
 ```
 
+**En internet (GitHub Pages):** https://mmatutes-beep.github.io/Games/ abre el juego y
+https://mmatutes-beep.github.io/Games/parchis/peluches.html el visor de peluches. Para activarlo:
+Settings → Pages → *Deploy from a branch* → `main` / `(root)`.
+
 - `js/rules.js`: reglas (no depende de three.js; se puede probar con node).
 - `js/board.js`: geometría del tablero y dibujo a boli.
 - `js/plush.js`: los seis peluches en versión caricatura.
