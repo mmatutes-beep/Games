@@ -14,7 +14,7 @@ const DEFAULT_PLUSH = ['pinguino', 'conejita', 'panda', 'unicornio'];
 // Escena
 // ------------------------------------------------------------------
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -558,10 +558,15 @@ function buildSetup() {
 
 let thumbs = {};
 
+// Miniatura del peluche, o su inicial si no se pudo pintar.
+function thumbHtml(p) {
+  return thumbs[p.id] ? `<img src="${thumbs[p.id]}" alt="">` : `<span class="thumb-initial" aria-hidden="true">${p.name[0]}</span>`;
+}
+
 function setPlush(btn, id) {
   const p = PLUSHES.find((x) => x.id === id) || PLUSHES[0];
   btn.dataset.value = p.id;
-  btn.innerHTML = `<img src="${thumbs[p.id] || ''}" alt=""><span>${p.name}</span>`;
+  btn.innerHTML = `${thumbHtml(p)}<span>${p.name}</span>`;
 }
 
 // Galería para elegir peluche, con miniaturas.
@@ -575,7 +580,7 @@ function openPicker(btn, colorName) {
     card.type = 'button';
     card.className = 'pick';
     card.setAttribute('aria-pressed', String(p.id === btn.dataset.value));
-    card.innerHTML = `<img src="${thumbs[p.id] || ''}" alt=""><span>${p.name}</span>`;
+    card.innerHTML = `${thumbHtml(p)}<span>${p.name}</span>`;
     card.addEventListener('click', () => { setPlush(btn, p.id); close(); });
     grid.appendChild(card);
   }
@@ -784,7 +789,11 @@ async function init() {
   } catch { /* sin fuente, usamos la de reserva */ }
   drawBoard(boardCanvas, {});
   boardTex.needsUpdate = true;
-  thumbs = plushThumbnails(120);
+  try {
+    thumbs = plushThumbnails(120, undefined, undefined, renderer);
+  } catch {
+    thumbs = {};
+  }
   buildSetup();
   $('loading').remove();
   requestAnimationFrame(loop);

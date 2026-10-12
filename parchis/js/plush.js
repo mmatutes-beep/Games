@@ -620,11 +620,16 @@ export function makePlush(kind, teamInk, teamSoft) {
 }
 
 // Miniaturas de cada peluche (data URLs) para los selectores.
-export function plushThumbnails(size = 160, ink = '#8c8178', soft = '#d6cdc4') {
-  const r = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-  r.setPixelRatio(1);
-  r.setSize(size, size);
-  r.toneMapping = THREE.ACESFilmicToneMapping;
+// Si se pasa el renderer del juego, se pinta con él (un único contexto WebGL,
+// que algunas tablets no llevan bien tener dos). Una miniatura vacía sale null.
+export function plushThumbnails(size = 160, ink = '#8c8178', soft = '#d6cdc4', renderer = null) {
+  const own = !renderer;
+  const r = renderer || new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  if (own) {
+    r.setPixelRatio(1);
+    r.setSize(size, size);
+    r.toneMapping = THREE.ACESFilmicToneMapping;
+  }
   const scene = new THREE.Scene();
   scene.add(new THREE.HemisphereLight('#fff6e8', '#8a7060', 1.3));
   const sun = new THREE.DirectionalLight('#fff1dc', 2.2);
@@ -633,17 +638,54 @@ export function plushThumbnails(size = 160, ink = '#8c8178', soft = '#d6cdc4') {
   const cam = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
   cam.position.set(0, 0.95, 3.3);
   cam.lookAt(0, 0.74, 0);
+
+  // pintamos en la esquina inferior izquierda del lienzo y la copiamos al momento
+  const gl = r.domElement;
+  const pr = r.getPixelRatio();
+  const px = Math.max(1, Math.min(size, Math.floor(gl.width / pr), Math.floor(gl.height / pr)));
+  const src = Math.floor(px * pr);
+  const prev = {
+    color: r.getClearColor(new THREE.Color()), alpha: r.getClearAlpha(),
+    viewport: r.getViewport(new THREE.Vector4()), scissor: r.getScissor(new THREE.Vector4()),
+    scissorTest: r.getScissorTest(), target: r.getRenderTarget(),
+  };
+  r.setRenderTarget(null);
+  r.setClearColor(0x000000, 0);
+  r.setViewport(0, 0, px, px);
+  r.setScissor(0, 0, px, px);
+  r.setScissorTest(true);
+
   const out = {};
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = size;
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
   for (const p of PLUSHES) {
     const m = makePlush(p.id, ink, soft);
     m.scale.setScalar(1);
     m.rotation.y = -0.35;
     scene.add(m);
-    r.render(scene, cam);
-    out[p.id] = r.domElement.toDataURL('image/png');
+    try {
+      r.render(scene, cam);
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(gl, 0, gl.height - src, src, src, 0, 0, size, size);
+      const probe = ctx.getImageData(size * 0.3, size * 0.3, size * 0.4, size * 0.4).data;
+      let painted = false;
+      for (let i = 3; i < probe.length; i += 16) if (probe[i] > 0) { painted = true; break; }
+      out[p.id] = painted ? cv.toDataURL('image/png') : null;
+    } catch {
+      out[p.id] = null;
+    }
     scene.remove(m);
   }
-  r.dispose();
-  r.forceContextLoss();
+
+  r.setClearColor(prev.color, prev.alpha);
+  r.setViewport(prev.viewport);
+  r.setScissor(prev.scissor);
+  r.setScissorTest(prev.scissorTest);
+  r.setRenderTarget(prev.target);
+  if (own) {
+    r.dispose();
+    r.forceContextLoss();
+  }
   return out;
 }
