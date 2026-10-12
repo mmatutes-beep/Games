@@ -22,4 +22,5 @@ Settings → Pages → *Deploy from a branch* → `main` / `(root)`.
 - `js/plush.js`: los seis peluches en versión caricatura.
 - `js/dice.js`: el dado de papel.
 - `js/main.js`: escena, turnos, animaciones e interfaz.
+- `manifest.webmanifest` e `icons/`: al añadirlo a la pantalla de inicio se abre a pantalla completa con el icono de Pingu.
 - `peluches.html`: visor 3D para ver los peluches de cerca (http://localhost:8000/peluches.html).
