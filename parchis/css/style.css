@@ -141,6 +141,37 @@ button, input, select { font-family: var(--hand); color: var(--ink); }
 .check { font-size: 20px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .check input { accent-color: var(--ink); width: 16px; height: 16px; }
 
+/* Botón de pantalla completa */
+.corner-btn {
+  position: fixed;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  width: 46px; height: 46px;
+  display: grid; place-items: center;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 11;
+}
+.corner-btn svg { fill: none; stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.corner-btn .fs-exit, .corner-btn.active .fs-enter { display: none; }
+.corner-btn.active .fs-exit { display: inline; }
+.corner-btn:hover { transform: rotate(-3deg) scale(1.05); }
+.corner-btn:focus-visible { outline: 3px dashed var(--paper); outline-offset: 3px; }
+#fs-tip {
+  position: fixed;
+  top: calc(66px + env(safe-area-inset-top, 0px));
+  right: 12px;
+  width: min(320px, calc(100% - 24px));
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.2;
+  z-index: 11;
+  cursor: pointer;
+}
+
 /* Barra inferior */
 #bar {
   position: fixed; left: 50%; bottom: 16px;
@@ -162,7 +193,7 @@ button, input, select { font-family: var(--hand); color: var(--ink); }
 
 @media (max-width: 640px) {
   h1 { font-size: 36px; }
-  #hud { width: auto; right: 12px; transform: none; padding: 6px 10px 6px 30px; font-size: 19px; }
+  #hud { width: auto; right: 66px; transform: none; padding: 6px 10px 6px 30px; font-size: 19px; }
   #hud h2 { display: none; }
   #players { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; margin: 0 0 2px; }
   #players li .meta { font-size: 16px; }

@@ -678,6 +678,50 @@ $('fast').addEventListener('change', () => {
 });
 
 // ------------------------------------------------------------------
+// Pantalla completa
+// ------------------------------------------------------------------
+
+const fsBtn = $('fullscreen');
+const docEl = document.documentElement;
+const canFullscreen = !!(docEl.requestFullscreen || docEl.webkitRequestFullscreen);
+const fullscreenEl = () => document.fullscreenElement || document.webkitFullscreenElement;
+// Abierto desde el icono de la pantalla de inicio: ya ocupa toda la pantalla.
+const installed = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || navigator.standalone === true;
+if (installed) fsBtn.classList.add('hidden');
+
+let tipTimer = 0;
+function showFullscreenTip() {
+  const tip = $('fs-tip');
+  tip.textContent = 'Este navegador no deja ponerlo a pantalla completa. Usa «Añadir a pantalla de inicio» en su menú y abre el juego desde el icono: así se ve sin barras.';
+  tip.classList.remove('hidden');
+  clearTimeout(tipTimer);
+  tipTimer = setTimeout(() => tip.classList.add('hidden'), 9000);
+}
+$('fs-tip').addEventListener('click', () => $('fs-tip').classList.add('hidden'));
+
+fsBtn.addEventListener('click', async () => {
+  if (!canFullscreen) { showFullscreenTip(); return; }
+  try {
+    if (fullscreenEl()) await (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else await (docEl.requestFullscreen || docEl.webkitRequestFullscreen).call(docEl, { navigationUI: 'hide' });
+  } catch {
+    showFullscreenTip();
+  }
+  syncFullscreen();
+});
+
+function syncFullscreen() {
+  const on = !!fullscreenEl();
+  fsBtn.classList.toggle('active', on);
+  const label = on ? 'Salir de pantalla completa' : 'Pantalla completa';
+  fsBtn.setAttribute('aria-label', label);
+  fsBtn.title = label;
+}
+document.addEventListener('fullscreenchange', syncFullscreen);
+document.addEventListener('webkitfullscreenchange', syncFullscreen);
+window.addEventListener('resize', syncFullscreen);
+
+// ------------------------------------------------------------------
 // Cámara y bucle de render
 // ------------------------------------------------------------------
 
