@@ -5,6 +5,7 @@ import { COLORS, HOME, META, Game, cellKey } from './rules.js';
 import { drawBoard, piecePosition, PAPER } from './board.js';
 import { makePlush, PLUSHES, plushThumbnails } from './plush.js';
 import { Dice } from './dice.js';
+import { WEAPONS, makeWeapon, makeBurst, makeJets, Particles } from './fx.js';
 
 const $ = (id) => document.getElementById(id);
 const TOP = 0.06; // grosor del papel
@@ -227,22 +228,174 @@ function stepPos(color, pc, q) {
   return piecePosition(color, q, pc.id, 0, 1);
 }
 
-async function animateMove(move, events) {
+async function animateMove(move, events, rocket = false) {
   const pc = move.piece;
   const color = game.players[move.pl].color;
   const mesh = pieceMesh.get(pc);
   const stepMs = move.path.length > 12 ? 120 : 170;
+  const victim = events.capture ? pieceMesh.get(events.capture.pc) : null;
+  let final = layout().get(pc);
+  if (victim) {
+    // se planta al lado de la víctima, por el lado del que llega, para darle el golpe
+    const ref = rocket || move.path.length < 2 ? mesh.position.clone() : stepPos(color, pc, move.path[move.path.length - 2]);
+    let dx = ref.x - victim.position.x, dz = ref.z - victim.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d < 0.01) { dx = 1; dz = 0; } else { dx /= d; dz /= d; }
+    final = { x: victim.position.x + dx * 0.9, z: victim.position.z + dz * 0.9 };
+  }
   if (move.from === HOME) {
-    await hop(mesh, layout().get(pc), 420, 1.6);
+    await hop(mesh, final, 420, 1.6);
+  } else if (rocket) {
+    await rocketTo(mesh, final);
   } else {
     for (const q of move.path.slice(0, -1)) await hop(mesh, stepPos(color, pc, q), stepMs);
-    await hop(mesh, layout().get(pc), stepMs + 40, move.to === META ? 1.4 : 0.55);
+    await hop(mesh, final, stepMs + 40, move.to === META ? 1.4 : 0.55);
   }
-  if (events.capture) {
-    const cm = pieceMesh.get(events.capture.pc);
-    await flyHome(cm, layout().get(events.capture.pc));
-  }
+  if (victim) events.weapon = await strike(mesh, victim, COLORS[color].ink, layout().get(events.capture.pc));
   await settle();
+}
+
+// ------------------------------------------------------------------
+// Comer a golpes y volar con propulsores
+// ------------------------------------------------------------------
+
+const particles = new Particles(boardGroup);
+let shake = 0;
+
+async function strike(mesh, victim, ink, home) {
+  const kind = WEAPONS[Math.floor(Math.random() * WEAPONS.length)];
+  const w = makeWeapon(kind, ink);
+  const stand = mesh.userData.body.parent;
+  const body = mesh.userData.body;
+  stand.add(w.pivot);
+  // se miran y aparece el arma
+  const dx = victim.position.x - mesh.position.x, dz = victim.position.z - mesh.position.z;
+  const a0 = mesh.rotation.y, v0 = victim.rotation.y;
+  const ya = Math.atan2(dx, dz), yv = Math.atan2(-dx, -dz);
+  await tween(240, (k) => {
+    const e = smooth(k);
+    mesh.rotation.y = lerpAngle(a0, ya, e);
+    victim.rotation.y = lerpAngle(v0, yv, e);
+    w.pivot.scale.setScalar(Math.max(0.01, e));
+  });
+  // coge impulso
+  const wind = w.from + Math.sign(w.from - w.to) * 0.35;
+  const lean = kind === 'patada' ? -0.25 : kind === 'maza' ? -0.15 : 0;
+  await tween(380, (k) => {
+    const e = smooth(k);
+    w.pivot.rotation[w.axis] = w.from + (wind - w.from) * e;
+    body.rotation.x = lean * e;
+    if (kind === 'bate') body.rotation.y = 0.35 * e;
+  });
+  await sleep(110);
+  // ¡golpe!
+  let hitDone = false, flight = null;
+  await tween(210, (k) => {
+    const e = k * k;
+    w.pivot.rotation[w.axis] = wind + (w.to - wind) * e;
+    body.rotation.x = lean * (1 - e) + (kind === 'maza' ? 0.2 : 0) * e;
+    if (kind === 'bate') body.rotation.y = 0.35 - 0.7 * e;
+    if (!hitDone && k >= w.hit) {
+      hitDone = true;
+      flight = impact(mesh, victim, kind, home);
+      flight.catch(() => {});
+    }
+  });
+  await sleep(160);
+  await tween(180, (k) => {
+    w.pivot.scale.setScalar(Math.max(0.01, 1 - k));
+    body.rotation.x *= 1 - k;
+    body.rotation.y *= 1 - k;
+  });
+  stand.remove(w.pivot);
+  body.rotation.set(0, 0, 0);
+  await flight;
+  return kind;
+}
+
+async function impact(mesh, victim, kind, home) {
+  const mid = new THREE.Vector3((mesh.position.x + victim.position.x) / 2, TOP + 0.75, (mesh.position.z + victim.position.z) / 2);
+  const pow = makeBurst(kind);
+  pow.position.copy(mid);
+  boardGroup.add(pow);
+  shake = kind === 'maza' ? 0.25 : 0.15;
+  particles.burst(mid, 14, { star: true, size: 0.22, grow: 0.4, life: 650, speed: 2.2, gravity: 3 });
+  tween(650, (k) => {
+    pow.scale.setScalar(0.4 + 1.5 * Math.min(1, k * 4));
+    pow.material.opacity = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
+  }).then(() => { boardGroup.remove(pow); pow.material.map.dispose(); pow.material.dispose(); }, () => boardGroup.remove(pow));
+  // la víctima se aplasta un instante y sale despedida
+  const vb = victim.userData.body;
+  await tween(kind === 'maza' ? 200 : 110, (k) => {
+    const s = 1 - (kind === 'maza' ? 0.55 : 0.3) * Math.sin(Math.PI * k);
+    vb.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s));
+  });
+  vb.scale.set(1, 1, 1);
+  await launchHome(victim, home, kind === 'golf' ? 7 : 5);
+}
+
+function launchHome(mesh, to, height) {
+  const from = mesh.position.clone();
+  const yaw0 = mesh.rotation.y;
+  const spinX = Math.PI * 2 * (2 + Math.floor(Math.random() * 2));
+  const spinZ = (Math.random() < 0.5 ? -1 : 1) * Math.PI * 2;
+  particles.trails.add(mesh);
+  return tween(1250, (k) => {
+    const e = 1 - Math.pow(1 - k, 1.6);
+    mesh.position.set(from.x + (to.x - from.x) * e, TOP + Math.sin(Math.PI * k) * height, from.z + (to.z - from.z) * e);
+    mesh.rotation.set(spinX * e, lerpAngle(yaw0, restYaw(to), e), spinZ * e);
+  }).then(() => {
+    particles.trails.delete(mesh);
+    mesh.rotation.set(0, restYaw(to), 0);
+    particles.burst(new THREE.Vector3(to.x, TOP + 0.05, to.z), 8, { size: 0.2, grow: 2.5, life: 600, speed: 0.6, lift: 0.3, color: '#cfc6b8', opacity: 0.6 });
+    return hop(mesh, to, 220, 0.25, false);
+  }, (err) => { particles.trails.delete(mesh); throw err; });
+}
+
+const HOVER = 0.3; // altura a la que flota al encender los propulsores
+
+async function rocketTo(mesh, to) {
+  const jets = makeJets();
+  mesh.add(jets);
+  particles.jets.add(jets);
+  const body = mesh.userData.body;
+  const from = mesh.position.clone();
+  const dx = to.x - from.x, dz = to.z - from.z;
+  const dist = Math.hypot(dx, dz);
+  const yaw0 = mesh.rotation.y, yaw = dist > 0.01 ? Math.atan2(dx, dz) : yaw0;
+  const height = 1.6 + Math.min(1.6, dist * 0.12);
+  try {
+    // encendido: tiembla y se gira hacia donde va
+    await tween(500, (k) => {
+      jets.userData.power = 0.25 + 0.4 * k;
+      mesh.position.set(from.x + (Math.random() - 0.5) * 0.03 * k, TOP + HOVER * smooth(k), from.z + (Math.random() - 0.5) * 0.03 * k);
+      mesh.rotation.y = lerpAngle(yaw0, yaw, smooth(k));
+      const s = 1 - 0.12 * k;
+      body.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s));
+    });
+    body.scale.set(1, 1, 1);
+    // despegue, vuelo y aterrizaje
+    await tween(800 + dist * 110, (k) => {
+      const up = smooth(Math.min(1, k / 0.22)) * smooth(Math.min(1, (1 - k) / 0.2));
+      const e = smooth(Math.min(1, Math.max(0, (k - 0.12) / 0.74)));
+      mesh.position.set(from.x + dx * e, TOP + HOVER + (height - HOVER) * up + Math.sin(k * 30) * 0.03 * up, from.z + dz * e);
+      body.rotation.x = 0.5 * Math.sin(Math.PI * e);
+      jets.userData.power = 0.55 + 0.45 * up;
+    });
+    particles.burst(new THREE.Vector3(to.x, TOP + 0.05, to.z), 10, { size: 0.22, grow: 2.5, life: 650, speed: 0.8, lift: 0.3, color: '#cfc6b8', opacity: 0.6 });
+    await tween(300, (k) => {
+      jets.userData.power = 0.55 * (1 - k);
+      mesh.position.y = TOP + HOVER * (1 - smooth(k));
+      const s = 1 - 0.18 * Math.sin(Math.PI * k);
+      body.scale.set(1 / Math.sqrt(s), s, 1 / Math.sqrt(s));
+      body.rotation.x = 0;
+    });
+  } finally {
+    particles.jets.delete(jets);
+    mesh.remove(jets);
+    body.scale.set(1, 1, 1);
+    body.rotation.x = 0;
+  }
 }
 
 // ------------------------------------------------------------------
@@ -407,8 +560,14 @@ function sayMove(pl, move, events) {
   if (move.from === HOME) parts.push(`${playerLabel(pl)} saca un peluche de casa.`);
   else if (events.meta) parts.push(`¡${playerLabel(pl)} mete un peluche en la meta!`);
   if (events.capture) {
-    const victim = game.players[events.capture.pl];
-    parts.push(`¡Se come a ${playerLabel(victim)}!`);
+    const v = playerLabel(game.players[events.capture.pl]);
+    const how = {
+      bate: `¡Batazo! ${v} vuelve a casa volando.`,
+      golf: `¡Golpe de golf! ${v} sale disparado a casa.`,
+      maza: `¡Mazazo! ${v} vuelve a casa de un porrazo.`,
+      patada: `¡Patada! ${v} vuelve a casa por los aires.`,
+    }[events.weapon];
+    parts.push(how || `¡Se come a ${v}!`);
   }
   if (parts.length) setMsg(parts.join(' '));
   return parts.join(' ');
@@ -465,7 +624,8 @@ async function playTurn(id) {
     const move = await chooseMove(nx.moves);
     guard(id);
     const events = game.apply(move);
-    await animateMove(move, events);
+    setMsg(`${playerLabel(pl)} enciende los propulsores… ¡despega!`);
+    await animateMove(move, events, true);
     guard(id);
     said = sayMove(pl, move, events);
     nx = game.next();
@@ -621,6 +781,8 @@ function startGame(seats) {
   const old = tweens;
   tweens = [];
   for (const t of old) t.rej(new Abort());
+  particles.clear();
+  shake = 0;
   highlighted.clear();
   clearPieces();
 
@@ -773,8 +935,17 @@ function loop(now) {
     m.userData.ring.material.opacity = 0.55 + Math.sin(s * 6) * 0.35;
   }
   for (const mk of markers.children) mk.scale.setScalar(1 + Math.sin(s * 6) * 0.15);
+  particles.update(now);
   controls.update();
-  renderer.render(scene, camera);
+  if (shake > 0.002) {
+    const off = new THREE.Vector3((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+    camera.position.add(off);
+    renderer.render(scene, camera);
+    camera.position.sub(off);
+    shake *= 0.86;
+  } else {
+    renderer.render(scene, camera);
+  }
   requestAnimationFrame(loop);
 }
 
@@ -801,4 +972,4 @@ async function init() {
 init();
 
 // Para depurar desde la consola
-window.parchis = { get game() { return game; }, get pieces() { return pieceMesh; }, highlighted, camera, controls };
+window.parchis = { get game() { return game; }, get pieces() { return pieceMesh; }, highlighted, camera, controls, animateMove, settle };
