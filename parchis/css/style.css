@@ -95,6 +95,13 @@ button, input, select { font-family: var(--hand); color: var(--ink); }
   font-size: 22px; font-weight: 700; padding: 0 8px 0 2px; cursor: pointer; text-align: left;
 }
 .seat .plush img { width: 44px; height: 44px; flex: none; }
+.thumb-initial {
+  flex: none; display: grid; place-items: center;
+  width: 36px; height: 36px; margin: 4px;
+  border: 2px solid var(--ink); border-radius: 50%;
+  font-size: 22px; font-weight: 700;
+}
+.pick .thumb-initial { width: 72px; height: 72px; margin: 12px; font-size: 40px; }
 .seat .plush span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .seat .plush:hover { border-style: solid; }
 .seat .plush:focus-visible { outline: 3px dashed var(--ink); outline-offset: 2px; }
