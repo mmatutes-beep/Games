@@ -8,14 +8,14 @@ export const PLUSHES = [
   { id: 'unicornio', name: 'Moni' },
   { id: 'tigre', name: 'Tigri' },
   { id: 'osito', name: 'Milka' },
-  { id: 'winnie', name: 'Winnie the puss' },
-  { id: 'earlygrey', name: 'Early grey' },
+  { id: 'winnie', name: 'Winnie the Poos' },
+  { id: 'earlygrey', name: 'Early grey', size: 0.72 },
   { id: 'ozita', name: 'Ozita' },
   { id: 'gluglu', name: 'Gluglu' },
   { id: 'foxy', name: 'Foxy' },
-  { id: 'orci', name: 'Orci' },
-  { id: 'bananito', name: 'Bananito' },
-  { id: 'piratilla', name: 'Piratilla' },
+  { id: 'orci', name: 'Orqui', size: 0.85 },
+  { id: 'bananito', name: 'Bananito', size: 1.28 },
+  { id: 'piratilla', name: 'Piratilla', size: 1.28 },
 ];
 
 // ------------------------------------------------------------------
@@ -700,7 +700,7 @@ const BUILDERS = {
     return { body, head, armL, armR };
   },
 
-  // Winnie the puss: asomando de su tarro de miel «HUNNY».
+  // Winnie the Poos: asomando de su tarro de miel «HUNNY».
   winnie() {
     const g = this;
     const yellow = fabric('#ffe27a'), pot = fabric('#8a6b52'), honey = fabric('#e5e58c'), red = fabric('#d8463c');
@@ -754,7 +754,7 @@ const BUILDERS = {
   // Early grey: pingüino gris de una pieza, aletas abiertas, gorrito y bufanda de punto.
   earlygrey() {
     const g = this;
-    const grey = fabric('#8e9097'), white = fabric('#f7f5f0'), yellow = felt('#f3df86');
+    const grey = fabric('#7d93b5'), white = fabric('#f7f5f0'), yellow = felt('#f3df86');
     const knit = knitted('#aba5ae'), pom = fabric('#eeeae2');
     const body = rig(g);
     body.add(ball(grey, 0.41, 0, 0.6, 0, 1, 1.38, 0.95)); // cuerpo y cabeza en un solo huevo
@@ -959,135 +959,145 @@ const BUILDERS = {
     return { body, head, armL: arms[0], armR: arms[1] };
   },
 
-  // Orci: orca pequeñita de rizo rosa con la barriga y las manchas azul clarito.
+  // Orqui: orca pequeñita de rizo rosa, nadando en horizontal, con la barriga y las manchas azul clarito.
   orci() {
     const g = this;
     const pink = fabric('#f3c1cd', getFur(), getFur(), 0.7), blue = fabric('#bfe0e4', getFur(), getFur(), 0.7);
     const body = rig(g);
-    body.add(ball(pink, 0.3, 0, 0.62, 0, 1, 1.5, 0.95));
-    body.add(ball(blue, 0.25, 0, 0.6, 0.12, 0.88, 1.5, 0.8)); // barriga y barbilla
+    const swim = new THREE.Group(); // el cuerpo a lo largo de z, con la cabeza hacia delante
+    swim.position.y = 0.34;
+    swim.rotation.x = -0.08;
+    body.add(swim);
+    swim.add(ball(pink, 0.27, 0, 0, 0.02, 0.95, 0.85, 1.6)); // cuerpo
+    swim.add(ball(blue, 0.24, 0, -0.07, 0.1, 0.82, 0.62, 1.45)); // barriga y barbilla
+    swim.add(ball(pink, 0.15, 0, 0.02, -0.42, 0.8, 0.7, 1.3)); // pedúnculo de la cola
     for (const s of [-1, 1]) {
-      // manchas azules detrás del ojo y sobre la cola
-      const patch = ball(blue, 1, s * 0.19, 0.9, -0.05, 0.04, 0.085, 0.12);
-      patch.rotation.set(0.3, s * 0.35, 0);
-      body.add(patch);
-      const saddle = ball(blue, 1, s * 0.19, 0.36, -0.12, 0.04, 0.07, 0.1);
-      body.add(saddle);
+      // mancha azul detrás del ojo y otra en el costado
+      const patch = ball(blue, 1, s * 0.22, 0.08, 0.2, 0.04, 0.07, 0.12);
+      patch.rotation.y = s * 0.3;
+      swim.add(patch);
+      const saddle = ball(blue, 1, s * 0.18, 0.06, -0.3, 0.04, 0.06, 0.11);
+      swim.add(saddle);
+      swim.add(ball(shiny('#15131a'), 0.022, s * 0.2, 0.05, 0.33));
+      // aletas pectorales hacia los lados y abajo
+      const fin = ball(pink, 1, s * 0.3, -0.12, 0.18, 0.15, 0.03, 0.08);
+      fin.rotation.set(0, s * 0.5, s * -0.5);
+      swim.add(fin);
+      // aletas de la cola, horizontales
+      const fluke = ball(s < 0 ? blue : pink, 1, s * 0.12, 0.04, -0.66, 0.14, 0.03, 0.08);
+      fluke.rotation.y = s * -0.5;
+      swim.add(fluke);
     }
-    for (const s of [-1, 1]) {
-      body.add(ball(shiny('#15131a'), 0.024, s * 0.17, 0.98, 0.2));
-    }
-    const armL = ball(pink, 1, -0.32, 0.6, 0.1, 0.05, 0.17, 0.1);
-    const armR = ball(pink, 1, 0.32, 0.6, 0.1, 0.05, 0.17, 0.1);
-    armL.rotation.z = 0.6; armR.rotation.z = -0.6;
-    body.add(armL, armR);
-    const dorsal = part(new THREE.ConeGeometry(0.07, 0.2, 12), pink, 0, 0.82, -0.27);
-    dorsal.rotation.x = -0.9;
-    dorsal.scale.x = 0.4;
-    body.add(dorsal);
-    // cola con dos aletas apoyadas en la peana
-    body.add(ball(pink, 0.13, 0, 0.17, 0));
-    for (const s of [-1, 1]) {
-      const fluke = ball(s < 0 ? blue : pink, 1, s * 0.13, 0.05, 0.05, 0.14, 0.04, 0.08);
-      fluke.rotation.y = s * 0.4;
-      body.add(fluke);
-    }
+    const dorsal = part(new THREE.ConeGeometry(0.08, 0.24, 12), pink, 0, 0.3, -0.06);
+    dorsal.rotation.x = -0.35;
+    dorsal.scale.x = 0.35;
+    swim.add(dorsal);
     const head = new THREE.Group();
-    body.add(head);
-    return { body, head, armL, armR };
+    swim.add(head);
+    return { body, head, armL: null, armR: null };
   },
 
-  // Bananito: plátano de pelo largo con rabito verde, manoplas y pies verdes.
+  // Bananito: plátano curvo de pelo largo con rabito verde, manoplas y pies verdes.
   bananito() {
     const g = this;
-    const shag = fabric('#fff2b0', getShag(), getShag(), 2), green = fabric('#9bd34a', getFur(), getFur(), 0.6);
+    const shag = fabric('#ffe680', getShag(), getShag(), 2), green = fabric('#9bd34a', getFur(), getFur(), 0.6);
     const body = rig(g);
-    // cuerpo curvado como un plátano: la espalda abombada, la punta hacia delante
-    const spine = [];
-    for (let i = 0; i <= 20; i++) {
-      const t = i / 20;
-      spine.push([0.29 - Math.sin(Math.PI * t) * 0.03 - t * 0.08, 0.28 + t * 0.78, -Math.sin(Math.PI * t) * 0.1 + t * t * 0.12]);
+    // espina en arco de plátano: la espalda muy abombada y la punta doblada hacia delante
+    const spine = (t) => {
+      const a = -0.35 + t * 1.6; // ángulo a lo largo del arco
+      return { y: 0.22 + Math.sin(a + 0.35) * 0.62 + t * 0.32, z: -Math.cos(a) * 0.4 + 0.33, r: 0.27 - t * 0.12 + Math.sin(Math.PI * t) * 0.05 };
+    };
+    for (let i = 0; i <= 32; i++) {
+      const p = spine(i / 32);
+      body.add(ball(shag, p.r, 0, p.y, p.z, 1, 1, 0.95));
     }
-    for (const [r, y, z] of spine) body.add(ball(shag, r, 0, y, z, 1, 1, 0.92));
-    // rabito verde curvado hacia delante
-    const stem = part(new THREE.CapsuleGeometry(0.075, 0.22, 6, 12), green, 0, 1.2, 0.2);
-    stem.rotation.x = 0.55;
+    const top = spine(1);
+    const stem = part(new THREE.CapsuleGeometry(0.065, 0.2, 6, 12), green, 0, top.y + 0.08, top.z + 0.13);
+    stem.rotation.x = 1.15;
     body.add(stem);
-    body.add(ball(shag, 0.1, 0, 1.08, 0.13)); // pelito alrededor del rabito
-    // carita: ojitos bordados y morrito peludo
-    for (const s of [-1, 1]) stitch(body, [s * 0.13, 0.84, 0.26], [s * 0.07, 0.83, 0.29], '#1d1716', 0.009);
-    body.add(ball(shag, 0.09, 0, 0.74, 0.29, 1.1, 0.9, 0.8));
-    // manoplas verdes
-    const armL = ball(green, 1, -0.29, 0.6, 0.12, 0.07, 0.12, 0.09);
-    const armR = ball(green, 1, 0.29, 0.6, 0.12, 0.07, 0.12, 0.09);
+    // carita en la parte de delante, bajo la curva
+    const face = spine(0.62);
+    for (const s of [-1, 1]) stitch(body, [s * 0.11, face.y + 0.04, face.z + face.r * 0.93], [s * 0.05, face.y + 0.03, face.z + face.r * 0.98], '#1d1716', 0.009);
+    body.add(ball(shag, 0.08, 0, face.y - 0.06, face.z + face.r * 0.95, 1.1, 0.9, 0.8));
+    const mid = spine(0.38);
+    const armL = ball(green, 1, -0.26, mid.y, mid.z + 0.12, 0.07, 0.12, 0.09);
+    const armR = ball(green, 1, 0.26, mid.y, mid.z + 0.12, 0.07, 0.12, 0.09);
     armL.rotation.z = -0.3; armR.rotation.z = 0.3;
     body.add(armL, armR);
-    // pies verdes grandes por delante y un mechón entre ellos
-    for (const s of [-1, 1]) body.add(ball(green, 0.14, s * 0.14, 0.09, 0.3, 0.9, 0.7, 1.25));
-    body.add(ball(shag, 0.07, 0, 0.14, 0.26));
+    for (const s of [-1, 1]) body.add(ball(green, 0.13, s * 0.13, 0.08, 0.3, 0.9, 0.7, 1.25));
     const head = new THREE.Group();
     body.add(head);
     return { body, head, armL, armR };
   },
 
-  // Piratilla: muñeca de trapo gigante con melena, camiseta del canguro y parche pirata.
+  // Piratilla: niña de trapo con proporciones reales, melena, camiseta del canguro y parche pirata.
   piratilla() {
     const g = this;
-    const skin = new THREE.MeshPhysicalMaterial({ color: '#f6d2b4', roughness: 0.95, sheen: 0.5, sheenColor: new THREE.Color('#ffffff') }), hair = fabric('#4a3326', getShag(), getShag(), 2);
+    const skin = new THREE.MeshPhysicalMaterial({ color: '#f3cfb1', roughness: 0.9, sheen: 0.4, sheenColor: new THREE.Color('#ffffff') });
+    const hair = fabric('#4a3022', getShag(), getShag(), 1.5);
     const tee = new THREE.MeshPhysicalMaterial({ map: getKangarooTee(), bumpMap: getFur(), bumpScale: 0.3, roughness: 1, sheen: 0.6, sheenColor: new THREE.Color('#ffffff') });
-    const green = fabric('#1f8f6a', getFur(), getFur(), 0.3), pants = fabric('#e9e6e0', getFur(), getFur(), 0.5);
-    const black = shiny('#151214');
+    const green = fabric('#1f8f6a', getFur(), getFur(), 0.3), pants = fabric('#ebe8e2', getFur(), getFur(), 0.5);
+    const black = new THREE.MeshStandardMaterial({ color: '#141114', roughness: 0.6 });
     const body = rig(g);
-    // piernas: pantalón ancho gris claro y pies descalzos
+    // piernas largas con pantalón ancho acampanado y pies descalzos
     for (const s of [-1, 1]) {
-      body.add(part(new THREE.CylinderGeometry(0.1, 0.13, 0.36, 18), pants, s * 0.11, 0.24, 0));
-      body.add(ball(skin, 0.07, s * 0.11, 0.05, 0.07, 0.9, 0.6, 1.4));
+      body.add(part(new THREE.CylinderGeometry(0.075, 0.105, 0.62, 18), pants, s * 0.085, 0.36, 0));
+      body.add(ball(skin, 0.055, s * 0.085, 0.035, 0.05, 0.9, 0.55, 1.5));
     }
-    body.add(ball(pants, 0.2, 0, 0.44, 0, 1.15, 0.5, 0.9));
-    // camiseta verde con el cartel amarillo
-    const torso = part(new THREE.CylinderGeometry(0.19, 0.23, 0.36, 32), tee, 0, 0.62, 0);
+    body.add(ball(pants, 0.17, 0, 0.66, 0, 1.05, 0.45, 0.8));
+    // torso con la camiseta, hombros y brazos finos colgando
+    const torso = part(new THREE.CylinderGeometry(0.15, 0.17, 0.42, 32), tee, 0, 0.9, 0);
     torso.rotation.y = Math.PI; // el dibujo hacia delante
+    torso.scale.z = 0.72;
     body.add(torso);
-    body.add(ball(green, 0.19, 0, 0.8, 0, 1.05, 0.35, 0.9));
+    body.add(ball(green, 0.15, 0, 1.1, 0, 1.05, 0.35, 0.72));
     const arms = [-1, 1].map((s) => {
       const arm = new THREE.Group();
-      arm.position.set(s * 0.23, 0.76, 0);
-      arm.rotation.z = s * 0.12;
-      arm.add(ball(green, 0.075, 0, -0.03, 0, 1, 1.2, 1));
-      arm.add(part(new THREE.CapsuleGeometry(0.045, 0.26, 6, 10), skin, 0, -0.2, 0));
-      arm.add(ball(skin, 0.055, 0, -0.38, 0.01));
+      arm.position.set(s * 0.18, 1.08, 0);
+      arm.rotation.z = s * 0.1;
+      arm.add(ball(green, 0.06, 0, -0.04, 0, 1, 1.3, 1));
+      arm.add(part(new THREE.CapsuleGeometry(0.034, 0.38, 6, 10), skin, 0, -0.26, 0));
+      arm.add(ball(skin, 0.042, 0, -0.5, 0.01, 0.9, 1.2, 0.8));
       body.add(arm);
       return arm;
     });
     const head = new THREE.Group();
-    head.position.y = 1.1;
+    head.position.y = 1.36;
     body.add(head);
-    head.add(part(new THREE.CylinderGeometry(0.06, 0.07, 0.1, 12), skin, 0, -0.24, 0)); // cuello
-    head.add(ball(skin, 0.27, 0, 0, 0, 0.95, 1.08, 0.95));
-    // melena castaña con raya al medio, cayendo hasta los hombros
+    head.add(part(new THREE.CylinderGeometry(0.045, 0.05, 0.12, 12), skin, 0, -0.17, 0)); // cuello
+    head.add(ball(skin, 0.155, 0, 0, 0, 0.88, 1.08, 0.95)); // cara ovalada
+    // melena castaña con raya al medio, hasta los hombros
     for (const s of [-1, 1]) {
-      const cap = ball(hair, 0.24, s * 0.08, 0.1, -0.03, 0.85, 0.85, 1.05);
+      const cap = ball(hair, 0.15, s * 0.05, 0.06, -0.02, 0.85, 0.85, 1.05);
       cap.rotation.z = s * -0.25;
       head.add(cap);
-      head.add(ball(hair, 0.15, s * 0.22, -0.12, -0.04, 0.65, 1.35, 0.95));
-      head.add(ball(hair, 0.14, s * 0.2, -0.3, -0.06, 0.75, 0.9, 0.9));
+      head.add(ball(hair, 0.1, s * 0.13, -0.08, -0.03, 0.55, 1.4, 0.95));
+      head.add(ball(hair, 0.1, s * 0.14, -0.22, -0.05, 0.65, 0.9, 0.85));
     }
-    head.add(ball(hair, 0.25, 0, -0.08, -0.12, 1.05, 1.15, 0.8));
-    stitch(head, [0, 0.29, 0.1], [0, 0.25, -0.12], '#7a5a48', 0.008); // raya
-    // carita: ojo marrón, sonrisa y mejillas
-    head.add(ball(shiny('#3a2418'), 0.032, -0.09, 0.02, 0.245, 1, 1.1, 0.5));
-    head.add(ball(shiny('#ffffff'), 0.009, -0.08, 0.035, 0.26));
-    const grin = part(new THREE.TorusGeometry(0.06, 0.008, 6, 20, Math.PI * 0.8), shiny('#b2504e'), 0, -0.1, 0.245);
-    grin.rotation.z = Math.PI + Math.PI * 0.1;
+    head.add(ball(hair, 0.16, 0, -0.08, -0.08, 1.05, 1.2, 0.75));
+    stitch(head, [0, 0.175, 0.07], [0, 0.15, -0.08], '#8a6a56', 0.005);
+    // ojo izquierdo: blanco, iris marrón, pupila y brillo, con su ceja
+    const ex = -0.052, ey = 0.02, ez = 0.143;
+    head.add(ball(shiny('#fbf8f4'), 0.022, ex, ey, ez, 1.25, 0.8, 0.4));
+    head.add(ball(shiny('#5a3a24'), 0.013, ex, ey, ez + 0.006, 1, 1, 0.4));
+    head.add(ball(shiny('#140d0a'), 0.006, ex, ey, ez + 0.01, 1, 1, 0.4));
+    head.add(ball(shiny('#ffffff'), 0.003, ex + 0.004, ey + 0.004, ez + 0.013));
+    stitch(head, [ex - 0.025, ey + 0.035, ez - 0.004], [ex + 0.022, ey + 0.04, ez], '#3b2618', 0.004);
+    // nariz, boca sonriente y mejillas
+    head.add(ball(skin, 0.018, 0, -0.025, 0.155, 0.9, 1, 0.8));
+    const grin = part(new THREE.TorusGeometry(0.032, 0.0055, 6, 20, Math.PI * 0.75), shiny('#b9605c'), 0, -0.055, 0.142);
+    grin.rotation.z = Math.PI + Math.PI * 0.125;
     head.add(grin);
-    const blush = new THREE.MeshStandardMaterial({ color: '#ff9aa6', roughness: 1, transparent: true, opacity: 0.5 });
-    head.add(ball(blush, 0.04, -0.15, -0.06, 0.22, 1, 0.6, 0.3));
-    head.add(ball(blush, 0.04, 0.15, -0.06, 0.22, 1, 0.6, 0.3));
-    // parche pirata sobre el ojo derecho y su cinta
-    const patch = ball(black, 0.055, 0.09, 0.03, 0.245, 1, 0.95, 0.3);
+    const blush = new THREE.MeshStandardMaterial({ color: '#ff9aa6', roughness: 1, transparent: true, opacity: 0.4 });
+    head.add(ball(blush, 0.025, -0.085, -0.035, 0.125, 1, 0.6, 0.3));
+    head.add(ball(blush, 0.025, 0.085, -0.035, 0.125, 1, 0.6, 0.3));
+    // parche pirata grande sobre el ojo derecho, con su cinta en diagonal
+    const patch = ball(black, 0.05, 0.055, 0.025, 0.137, 1.05, 0.9, 0.32);
+    patch.rotation.z = -0.15;
     head.add(patch);
-    const strap = part(new THREE.TorusGeometry(0.262, 0.01, 6, 48), black, 0, 0.06, 0);
-    strap.rotation.set(Math.PI / 2, 0.35, 0);
+    const strap = part(new THREE.TorusGeometry(0.152, 0.006, 6, 48), black, 0, 0.04, 0);
+    strap.rotation.set(Math.PI / 2, 0.42, 0);
+    strap.scale.set(0.95, 1, 1);
     head.add(strap);
     return { body, head, armL: arms[0], armR: arms[1] };
   },
@@ -1134,6 +1144,9 @@ export function makePlush(kind, teamInk, teamSoft) {
   g.add(rim);
 
   const sk = build.call(g, g, teamInk);
+  // los pequeñitos y los grandotes: se escala el peluche, no la peana
+  const size = (PLUSHES.find((p) => p.id === kind) || {}).size || 1;
+  sk.body.parent.scale.setScalar(size);
 
   // anillo de selección (oculto por defecto)
   const ring = new THREE.Mesh(
@@ -1195,6 +1208,10 @@ export function plushThumbnails(size = 160, ink = '#8c8178', soft = '#d6cdc4', r
     m.scale.setScalar(1);
     m.rotation.y = -0.35;
     scene.add(m);
+    const box = new THREE.Box3().setFromObject(m);
+    const h = Math.max(1.35, box.max.y);
+    cam.position.set(0, h * 0.7, h * 2.45);
+    cam.lookAt(0, h * 0.55, 0);
     try {
       r.render(scene, cam);
       ctx.clearRect(0, 0, size, size);
