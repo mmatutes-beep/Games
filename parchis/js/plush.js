@@ -9,11 +9,11 @@ export const PLUSHES = [
   { id: 'tigre', name: 'Tigri' },
   { id: 'osito', name: 'Milka' },
   { id: 'winnie', name: 'Winnie the Poos' },
-  { id: 'earlygrey', name: 'Early grey', size: 0.72 },
+  { id: 'earlygrey', name: 'Early grey', size: 0.6 },
   { id: 'ozita', name: 'Ozita' },
   { id: 'gluglu', name: 'Gluglu' },
   { id: 'foxy', name: 'Foxy' },
-  { id: 'orci', name: 'Orqui', size: 0.85 },
+  { id: 'orci', name: 'Orqui', size: 1 },
   { id: 'bananito', name: 'Bananito', size: 1.28 },
   { id: 'piratilla', name: 'Piratilla', size: 1.28 },
 ];
@@ -786,13 +786,16 @@ const BUILDERS = {
     hat.add(ball(knit, 0.12, 0, 0.09, 0, 1, 1.3, 1));
     hat.add(ball(knit, 0.04, 0.02, 0.26, 0));
     head.add(hat);
-    // bufanda de punto con dos cordones y pompones blancos
-    const scarf = part(new THREE.TorusGeometry(0.35, 0.06, 10, 40), knit, 0, 0.74, 0.01);
-    scarf.rotation.x = Math.PI / 2 - 0.1;
+    // bufanda de punto ceñida al cuello, con dos puntas cortas y pompones pegados a la barriga
+    const scarf = part(new THREE.TorusGeometry(0.385, 0.045, 10, 48), knit, 0, 0.74, 0.01);
+    scarf.rotation.x = Math.PI / 2;
+    scarf.scale.set(1, 0.97, 1);
     body.add(scarf);
     for (const s of [-1, 1]) {
-      stitch(body, [s * 0.07, 0.72, 0.39], [s * 0.17, 0.5, 0.41], '#aba5ae', 0.022);
-      body.add(ball(pom, 0.065, s * 0.18, 0.47, 0.42));
+      const tail = part(new THREE.BoxGeometry(0.06, 0.17, 0.03), knit, s * 0.06, 0.63, 0.42);
+      tail.rotation.set(-0.2, 0, s * 0.18);
+      body.add(tail);
+      body.add(ball(pom, 0.042, s * 0.08, 0.53, 0.44));
     }
     return { body, head, armL, armR };
   },
@@ -943,12 +946,10 @@ const BUILDERS = {
     head.position.y = 0.93;
     body.add(head);
     head.add(ball(tweed, 0.27, 0, 0, 0, 1, 1, 1));
-    // hocico afilado con la «barba» crema de punto y naricita
-    const snout = part(new THREE.ConeGeometry(0.15, 0.28, 20), tweed, 0, -0.03, 0.27);
-    snout.rotation.x = Math.PI / 2;
-    head.add(snout);
+    // morro redondeado con la «barba» crema de punto y una bolita marrón de nariz
+    head.add(ball(tweed, 0.12, 0, -0.06, 0.17, 0.9, 0.75, 1.3));
     head.add(ball(cream, 0.2, 0, -0.12, 0.17, 1.15, 0.65, 0.95));
-    head.add(ball(tweed, 0.035, 0, -0.03, 0.42));
+    head.add(ball(fabric('#7a4128', getFur(), getFur(), 0.5), 0.042, 0, -0.04, 0.36));
     for (const s of [-1, 1]) {
       head.add(ball(shiny('#1d1716'), 0.022, s * 0.1, 0.1, 0.25, 1, 0.75, 0.6));
       const ear = part(new THREE.ConeGeometry(0.09, 0.26, 14), tweed, s * 0.15, 0.3, -0.02);
@@ -1053,11 +1054,11 @@ const BUILDERS = {
     body.add(ball(green, 0.15, 0, 1.1, 0, 1.05, 0.35, 0.72));
     const arms = [-1, 1].map((s) => {
       const arm = new THREE.Group();
-      arm.position.set(s * 0.18, 1.08, 0);
+      arm.position.set(s * 0.195, 1.08, 0);
       arm.rotation.z = s * 0.1;
-      arm.add(ball(green, 0.06, 0, -0.04, 0, 1, 1.3, 1));
-      arm.add(part(new THREE.CapsuleGeometry(0.034, 0.38, 6, 10), skin, 0, -0.26, 0));
-      arm.add(ball(skin, 0.042, 0, -0.5, 0.01, 0.9, 1.2, 0.8));
+      arm.add(ball(green, 0.075, 0, -0.04, 0, 1, 1.3, 1));
+      arm.add(part(new THREE.CapsuleGeometry(0.05, 0.36, 6, 12), skin, 0, -0.26, 0));
+      arm.add(ball(skin, 0.056, 0, -0.5, 0.01, 0.9, 1.2, 0.8));
       body.add(arm);
       return arm;
     });
@@ -1092,12 +1093,13 @@ const BUILDERS = {
     head.add(ball(blush, 0.025, -0.085, -0.035, 0.125, 1, 0.6, 0.3));
     head.add(ball(blush, 0.025, 0.085, -0.035, 0.125, 1, 0.6, 0.3));
     // parche pirata grande sobre el ojo derecho, con su cinta en diagonal
-    const patch = ball(black, 0.05, 0.055, 0.025, 0.137, 1.05, 0.9, 0.32);
+    const patch = ball(black, 0.055, 0.055, 0.025, 0.138, 1.05, 0.92, 0.45);
     patch.rotation.z = -0.15;
     head.add(patch);
-    const strap = part(new THREE.TorusGeometry(0.152, 0.006, 6, 48), black, 0, 0.04, 0);
-    strap.rotation.set(Math.PI / 2, 0.42, 0);
-    strap.scale.set(0.95, 1, 1);
+    // cinta: un aro inclinado que va del parche por encima del pelo hasta la nuca izquierda
+    const strap = part(new THREE.TorusGeometry(0.178, 0.0075, 6, 64), black, 0, 0.03, -0.02);
+    const toPatch = new THREE.Vector3(0.055, -0.005, 0.17), toBack = new THREE.Vector3(-0.1, 0.13, -0.05);
+    strap.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), toPatch.cross(toBack).normalize());
     head.add(strap);
     return { body, head, armL: arms[0], armR: arms[1] };
   },
