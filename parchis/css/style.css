@@ -21,6 +21,7 @@ html, body {
 }
 
 #stage { position: fixed; inset: 0; }
+#stage canvas { width: 100% !important; height: 100% !important; }
 #stage canvas { display: block; touch-action: none; }
 
 .hidden { display: none !important; }
@@ -167,6 +168,9 @@ button, input, select { font-family: var(--hand); color: var(--ink); }
 .corner-btn.active .fs-exit { display: inline; }
 .corner-btn:hover { transform: rotate(-3deg) scale(1.05); }
 .corner-btn:focus-visible { outline: 3px dashed var(--paper); outline-offset: 3px; }
+.sound-btn { right: calc(66px + env(safe-area-inset-right, 0px)); }
+.sound-btn .mute-x { display: none; }
+.sound-btn.active .mute-x { display: inline; stroke: #c8322b; }
 #fs-tip {
   position: fixed;
   top: calc(66px + env(safe-area-inset-top, 0px));
@@ -179,18 +183,59 @@ button, input, select { font-family: var(--hand); color: var(--ink); }
   cursor: pointer;
 }
 
-/* Barra inferior */
+/* Barra de mensajes y botón de tirar */
 #bar {
-  position: fixed; left: 50%; bottom: 16px;
-  transform: translateX(-50%);
+  position: fixed;
   display: flex; align-items: center; gap: 16px;
   background: var(--paper);
   border-radius: 4px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
   padding: 8px 12px 8px 22px;
-  width: min(640px, calc(100% - 32px));
   z-index: 5;
 }
+
+/* Horizontal (tablet, ordenador): marcador y barra en una columna a la izquierda */
+body.side #hud { width: 250px; }
+body.side #bar {
+  left: 12px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  width: 250px;
+  flex-direction: column; align-items: stretch; gap: 10px;
+  padding: 12px 14px 14px 20px;
+}
+body.side #bar .pen-btn { width: 100%; }
+
+/* Vertical (móvil, tablet de pie): marcador arriba y barra abajo, a todo lo ancho */
+body.stack #hud {
+  top: calc(8px + env(safe-area-inset-top, 0px)); left: 8px; right: 120px;
+  width: auto; transform: none;
+  padding: 6px 10px 6px 30px; font-size: 19px;
+}
+body.stack #hud h2 { display: none; }
+body.stack #players { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; margin: 0 0 2px; }
+body.stack #players li .meta { font-size: 16px; }
+body.stack #bar {
+  left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  flex-wrap: wrap; gap: 6px 12px;
+  padding: 8px 12px 10px 16px;
+}
+body.stack #bar #msg { flex: 1 1 260px; }
+body.stack #bar .pen-btn { flex: 1 1 200px; }
+
+/* Fiesta final: pantalla entera para el baile; la tarjeta abajo, sin tapar */
+body.celebrating #hud, body.celebrating #bar { display: none !important; }
+#win {
+  position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: min(460px, calc(100% - 24px));
+  z-index: 10;
+  animation: rise 0.5s ease-out;
+}
+#win .card { width: 100%; transform: rotate(-0.8deg); display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+#win h1 { font-size: 38px; flex: 1 1 100%; }
+#win .sub { margin: 0; flex: 1 1 200px; }
+@keyframes rise { from { transform: translate(-50%, 40px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #win { animation: none; } }
+
 #msg { margin: 0; flex: 1; font-size: 24px; line-height: 1.15; min-height: 1.15em; }
 
 #loading {
@@ -200,11 +245,6 @@ button, input, select { font-family: var(--hand); color: var(--ink); }
 
 @media (max-width: 640px) {
   h1 { font-size: 36px; }
-  #hud { width: auto; right: 66px; transform: none; padding: 6px 10px 6px 30px; font-size: 19px; }
-  #hud h2 { display: none; }
-  #players { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; margin: 0 0 2px; }
-  #players li .meta { font-size: 16px; }
-  #bar { flex-direction: column; align-items: stretch; gap: 6px; padding: 8px 12px 10px 16px; }
   #msg { font-size: 21px; }
   .pen-btn { font-size: 24px; }
   .seat { grid-template-columns: 78px 1fr 1fr; }

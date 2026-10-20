@@ -6,6 +6,7 @@ import { drawBoard, piecePosition, PAPER } from './board.js';
 import { makePlush, PLUSHES, plushThumbnails } from './plush.js';
 import { Dice } from './dice.js';
 import { WEAPONS, makeWeapon, makeBurst, makeJets, Particles } from './fx.js';
+import { Music, BPM } from './music.js';
 
 const $ = (id) => document.getElementById(id);
 const TOP = 0.06; // grosor del papel
@@ -645,26 +646,163 @@ async function run(id) {
   }
 }
 
+// ------------------------------------------------------------------
+// Fiesta final: coro de los ganadores, zoom, fuegos artificiales y música
+// ------------------------------------------------------------------
+
+const music = new Music();
+let party = null;
+const SPACING = 1.15, DANCER_SCALE = 1.7;
+
 async function celebrate(id) {
   const pl = game.players[game.winner];
   setMsg(`¡${playerLabel(pl)} gana la partida!`);
   $('win-title').textContent = `¡Gana ${pl.name}!`;
   $('win-title').style.color = COLORS[pl.color].ink;
   const plush = PLUSHES.find((p) => p.id === pl.plush).name;
-  $('win-text').textContent = `Las cuatro fichas de ${plush} ya están en la meta.`;
-  setTimeout(() => { if (id === runId) $('win').classList.remove('hidden'); }, 1200);
+  $('win-text').textContent = `Las cuatro fichas de ${plush} bailan en la meta.`;
   speed = 1;
-  const meshes = pl.pieces.map((pc) => pieceMesh.get(pc));
+  const dancers = pl.pieces.map((pc) => pieceMesh.get(pc));
+  // despejar el centro: fuera el dado y las fichas de los demás que estén cerca
+  dice.mesh.visible = false;
+  for (const m of pieceMesh.values()) {
+    if (!dancers.includes(m) && Math.hypot(m.position.x, m.position.z) < 3.2) m.visible = false;
+  }
+  document.body.classList.add('celebrating');
+  layoutStage();
+
+  // dirección hacia la cámara, en coordenadas del tablero
+  const camLocal = boardGroup.worldToLocal(camera.position.clone());
+  const toCam = new THREE.Vector2(camLocal.x, camLocal.z).normalize();
+  const right = new THREE.Vector2(toCam.y, -toCam.x);
+  const faceYaw = Math.atan2(toCam.x, toCam.y);
+
   try {
-    while (id === runId) {
-      for (const m of meshes) {
-        const p = m.position.clone();
-        hop(m, p, 420, 1.2, false).catch(() => {});
-        await sleep(110);
+    // en fila en el centro mirando a la cámara; en pantallas verticales, dos filas de dos
+    const tall = camera.aspect < 0.85;
+    const slots = tall
+      ? [[-0.62, 0.6], [0.62, 0.6], [-0.62, -0.75], [0.62, -0.75]]
+      : [0, 1, 2, 3].map((i) => [(i - 1.5) * SPACING, 0]);
+    await Promise.all(dancers.map((m, i) => {
+      const [off, fwd] = slots[i];
+      const to = { x: right.x * off + toCam.x * fwd, z: right.y * off + toCam.y * fwd };
+      return hop(m, to, 650, 1.4).then(() => { m.rotation.y = faceYaw; });
+    }));
+    guard(id);
+    // zoom
+    const target = new THREE.Vector3(0, 0.62, 0);
+    boardGroup.localToWorld(target);
+    const camDir = new THREE.Vector3(camLocal.x, 0, camLocal.z).normalize().applyQuaternion(boardGroup.quaternion);
+    const vfov = THREE.MathUtils.degToRad(camera.fov);
+    const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
+    const width = tall ? 2.9 : SPACING * 3 + 1.5, height = tall ? 1.9 : 1.5;
+    const dist = Math.max(width / 2 / Math.tan(hfov / 2), height / Math.tan(vfov / 2)) * 0.95;
+    const up = tall ? 0.62 : 0.27; // en vertical, más alta para ver también la fila de atrás
+    const endPos = target.clone().addScaledVector(camDir, dist * (tall ? 0.85 : 0.96)).add(new THREE.Vector3(0, dist * up, 0));
+    const startPos = camera.position.clone(), startTgt = controls.target.clone();
+    controls.enabled = false;
+    await tween(1600, (k) => {
+      const e = smooth(k);
+      camera.position.lerpVectors(startPos, endPos, e);
+      controls.target.lerpVectors(startTgt, target, e);
+      for (const m of dancers) m.scale.setScalar(0.64 * (1 + (DANCER_SCALE - 1) * e));
+    });
+    guard(id);
+    controls.enabled = true;
+    music.start();
+    party = { id, dancers, t0: performance.now(), nextFw: 0, faceYaw, toCam, right, tall };
+    setTimeout(() => { if (id === runId) $('win').classList.remove('hidden'); }, 3500);
+  } catch { /* partida nueva */ }
+}
+
+function endParty() {
+  if (!party) return;
+  for (const m of party.dancers) {
+    m.userData.body.position.set(0, 0, 0);
+    m.userData.body.rotation.set(0, 0, 0);
+    m.position.y = TOP;
+  }
+  party = null;
+  music.stop();
+  controls.enabled = true;
+}
+
+// coreografía de 8 tiempos al compás de la música
+function danceStep(now) {
+  if (!party) return;
+  if (party.id !== runId) { endParty(); return; }
+  const beatLen = 60000 / BPM;
+  const beats = (now - party.t0) / beatLen;
+  const bar = Math.floor(beats / 4) % 4;
+  party.dancers.forEach((m, i) => {
+    const { body, armL, armR } = m.userData;
+    const b = beats % 4, ph = beats * Math.PI;
+    body.position.set(0, 0, 0);
+    body.rotation.set(0, 0, 0);
+    m.rotation.y = party.faceYaw;
+    let jump = 0; // los saltos levantan la ficha entera, con su peana
+    if (bar === 0) {
+      // balanceo de coro: todos a la vez, de lado a lado
+      body.rotation.z = Math.sin(ph) * 0.22;
+      body.position.x = Math.sin(ph) * 0.12;
+      body.position.y = Math.abs(Math.sin(ph)) * 0.12;
+    } else if (bar === 1) {
+      // patadas de cabaret alternando, con saltito
+      const side = Math.floor(beats * 2) % 2 ? 1 : -1;
+      body.rotation.x = -0.25 * Math.abs(Math.sin(ph * 2));
+      body.rotation.z = side * 0.12;
+      jump = Math.abs(Math.sin(ph * 2)) * 0.22;
+    } else if (bar === 2) {
+      // la ola: saltan uno detrás de otro con media vuelta
+      const k = (b - i * 0.5);
+      if (k > 0 && k < 1.2) {
+        const e = k / 1.2;
+        jump = Math.sin(Math.PI * e) * 0.9;
+        m.rotation.y = party.faceYaw + Math.PI * 2 * e;
       }
-      await sleep(700);
+    } else {
+      // brazos arriba y giro todos juntos
+      const e = (b % 2) / 2;
+      m.rotation.y = party.faceYaw + Math.PI * 2 * smooth(e);
+      jump = Math.sin(Math.PI * e) * 0.45;
     }
-  } catch { /* nada */ }
+    m.position.y = TOP + jump;
+    // brazos: arriba y abajo alternando, como un coro
+    const wave = Math.sin(ph + (bar === 2 ? i : 0)) * 0.7;
+    if (armL) armL.rotation.x = -wave - (bar === 3 ? 1.2 : 0);
+    if (armR) armR.rotation.x = wave - (bar === 3 ? 1.2 : 0);
+  });
+  // fuegos artificiales
+  if (now > party.nextFw) {
+    party.nextFw = now + 350 + Math.random() * 550;
+    firework(party.toCam, party.right, party.tall);
+  }
+}
+
+const FW_COLORS = ['#ff4d6d', '#ffd23f', '#3ec1ff', '#7bff6b', '#c77dff', '#ff9f1c', '#ffffff'];
+// estallan detrás de los bailarines (vistos desde la cámara) para que salgan en el plano
+function firework(toCam, right, tall) {
+  const back = tall ? 1.6 + Math.random() * 1.6 : 2.5 + Math.random() * 3.5;
+  const side = (Math.random() - 0.5) * (tall ? 3 : 7);
+  const y = tall ? 1.6 + Math.random() * 1.2 : 2.0 + Math.random() * 1.8;
+  const at = new THREE.Vector3(-toCam.x * back + right.x * side, y, -toCam.y * back + right.y * side);
+  const color = FW_COLORS[Math.floor(Math.random() * FW_COLORS.length)];
+  const color2 = FW_COLORS[Math.floor(Math.random() * FW_COLORS.length)];
+  // estela de subida
+  for (let i = 0; i < 6; i++) {
+    particles.spawn({ pos: new THREE.Vector3(at.x, at.y - 2.2 + i * 0.35, at.z), vel: new THREE.Vector3(0, 1.5, 0), life: 300 + i * 40, size: 0.12, grow: 0.3, color: '#ffe9b0', additive: true });
+  }
+  // la explosión en esfera
+  const n = 46;
+  for (let i = 0; i < n; i++) {
+    const u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, sq = Math.sqrt(1 - u * u);
+    const sp = 2.6 + Math.random() * 0.8;
+    particles.spawn({
+      pos: at, vel: new THREE.Vector3(sq * Math.cos(th) * sp, u * sp, sq * Math.sin(th) * sp),
+      life: 1100 + Math.random() * 500, size: 0.2, grow: 0.5, color: i % 3 ? color : color2, additive: true, gravity: 2.2,
+    });
+  }
+  particles.spawn({ pos: at, vel: new THREE.Vector3(), life: 280, size: 1.6, grow: 2, color: '#fff6d8', additive: true });
 }
 
 // ------------------------------------------------------------------
@@ -783,6 +921,9 @@ function startGame(seats) {
   for (const t of old) t.rej(new Abort());
   particles.clear();
   shake = 0;
+  endParty();
+  dice.mesh.visible = true;
+  document.body.classList.remove('celebrating');
   highlighted.clear();
   clearPieces();
 
@@ -809,12 +950,14 @@ function startGame(seats) {
   }
 
   const firstHuman = players.find((p) => !p.cpu);
-  frameCamera(firstHuman ? firstHuman.color : 0);
+  viewColor = firstHuman ? firstHuman.color : 0;
 
   $('setup').classList.add('hidden');
   $('win').classList.add('hidden');
   $('hud').classList.remove('hidden');
   $('bar').classList.remove('hidden');
+  layoutStage();
+  frameCamera();
   renderHud();
   run(runId);
 }
@@ -832,6 +975,9 @@ $('setup-form').addEventListener('submit', (e) => {
 });
 
 function openSetup() {
+  runId++;
+  endParty();
+  document.body.classList.remove('celebrating');
   buildSetup();
   $('win').classList.add('hidden');
   $('setup').classList.remove('hidden');
@@ -889,17 +1035,42 @@ document.addEventListener('webkitfullscreenchange', syncFullscreen);
 window.addEventListener('resize', syncFullscreen);
 
 // ------------------------------------------------------------------
+// Sonido
+// ------------------------------------------------------------------
+
+const soundBtn = $('sound');
+function syncSound() {
+  soundBtn.classList.toggle('active', music.muted);
+  const label = music.muted ? 'Activar música' : 'Quitar música';
+  soundBtn.setAttribute('aria-label', label);
+  soundBtn.title = label;
+}
+soundBtn.addEventListener('click', () => {
+  music.unlock();
+  music.setMuted(!music.muted);
+  if (!music.muted && party) music.start();
+  syncSound();
+});
+syncSound();
+// el navegador solo deja sonar audio después de un toque o una tecla
+for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => music.unlock(), { passive: true });
+
+// ------------------------------------------------------------------
 // Cámara y bucle de render
 // ------------------------------------------------------------------
 
 let viewColor = 0;
+const stageEl = $('stage');
+const stageSize = () => ({ w: Math.max(1, stageEl.clientWidth), h: Math.max(1, stageEl.clientHeight) });
+
 function frameCamera(color = viewColor) {
   viewColor = color;
-  const aspect = window.innerWidth / window.innerHeight;
-  const fitR = PAPER * 1.08;
+  const { w, h } = stageSize();
+  const aspect = w / h;
+  const fitR = PAPER * 1.04;
   const vfov = THREE.MathUtils.degToRad(camera.fov);
   const hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect);
-  const dist = fitR / Math.sin(Math.min(vfov, hfov) / 2) * (aspect < 1 ? 0.95 : 0.82);
+  const dist = fitR / Math.sin(Math.min(vfov, hfov) / 2) * (aspect < 1 ? 0.9 : 0.93);
   const elev = aspect < 1 ? 1.15 : 0.98;
   let x = 0, z = Math.cos(elev) * dist;
   for (let i = 0; i < color; i++) [x, z] = [z, -x];
@@ -908,13 +1079,35 @@ function frameCamera(color = viewColor) {
   controls.update();
 }
 
+// Coloca el marcador y la barra y deja el tablero en el hueco que queda libre:
+// en horizontal, una columna a la izquierda; en vertical, arriba y abajo.
+function layoutStage() {
+  const W = window.innerWidth, H = window.innerHeight;
+  const side = W / H > 1.15 && W >= 700;
+  document.body.classList.toggle('side', side);
+  document.body.classList.toggle('stack', !side);
+  const inGame = !$('hud').classList.contains('hidden') && !document.body.classList.contains('celebrating');
+  let top = 0, left = 0, bottom = 0;
+  if (inGame) {
+    const hud = $('hud').getBoundingClientRect(), bar = $('bar').getBoundingClientRect();
+    if (side) left = Math.max(hud.right, bar.right) + 6;
+    else { top = hud.bottom + 4; bottom = H - bar.top + 4; }
+  }
+  const st = stageEl.style;
+  const changed = st.top !== top + 'px' || st.left !== left + 'px' || st.bottom !== bottom + 'px';
+  st.top = top + 'px'; st.left = left + 'px'; st.bottom = bottom + 'px'; st.right = '0px';
+  if (changed) { resize(); if (!party) frameCamera(); }
+}
+
 function resize() {
-  const w = window.innerWidth, h = window.innerHeight;
+  const { w, h } = stageSize();
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
-window.addEventListener('resize', () => { resize(); frameCamera(); });
+window.addEventListener('resize', () => { resize(); layoutStage(); if (!party) frameCamera(); });
+new ResizeObserver(() => layoutStage()).observe($('hud'));
+new ResizeObserver(() => layoutStage()).observe($('bar'));
 
 function loop(now) {
   // las animaciones avanzan antes de pintar
@@ -935,6 +1128,7 @@ function loop(now) {
     m.userData.ring.material.opacity = 0.55 + Math.sin(s * 6) * 0.35;
   }
   for (const mk of markers.children) mk.scale.setScalar(1 + Math.sin(s * 6) * 0.15);
+  danceStep(now);
   particles.update(now);
   controls.update();
   if (shake > 0.002) {
@@ -950,6 +1144,7 @@ function loop(now) {
 }
 
 async function init() {
+  layoutStage();
   resize();
   frameCamera(0);
   try {
@@ -972,4 +1167,4 @@ async function init() {
 init();
 
 // Para depurar desde la consola
-window.parchis = { get game() { return game; }, get pieces() { return pieceMesh; }, highlighted, camera, controls, animateMove, settle };
+window.parchis = { get game() { return game; }, get pieces() { return pieceMesh; }, get party() { return party; }, music, highlighted, camera, controls, animateMove, settle };
