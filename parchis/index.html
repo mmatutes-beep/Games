@@ -15,16 +15,18 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261016">
+  <link rel="stylesheet" href="css/style.css?v=20261021">
   <script type="importmap">
     {
       "imports": {
         "three": "./vendor/three.module.min.js",
-        "./js/rules.js": "./js/rules.js?v=20261016",
-        "./js/board.js": "./js/board.js?v=20261016",
-        "./js/plush.js": "./js/plush.js?v=20261016",
-        "./js/dice.js": "./js/dice.js?v=20261016",
-        "./js/fx.js": "./js/fx.js?v=20261016"
+        "./js/rules.js": "./js/rules.js?v=20261021",
+        "./js/board.js": "./js/board.js?v=20261021",
+        "./js/plush.js": "./js/plush.js?v=20261021",
+        "./js/dice.js": "./js/dice.js?v=20261021",
+        "./js/fx.js": "./js/fx.js?v=20261021",
+        "./js/music.js": "./js/music.js?v=20261021",
+        "./js/tunes.js": "./js/tunes.js?v=20261021"
       }
     }
   </script>
@@ -37,6 +39,13 @@
     <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
       <path class="fs-enter" d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" />
       <path class="fs-exit" d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5" />
+    </svg>
+  </button>
+  <!-- Música -->
+  <button id="sound" class="corner-btn sound-btn" type="button" aria-label="Quitar música" title="Quitar música">
+    <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">
+      <path d="M9 18V6l10-2v12" /><circle cx="6.5" cy="18" r="2.5" /><circle cx="16.5" cy="16" r="2.5" />
+      <path class="mute-x" d="M3 3l18 18" />
     </svg>
   </button>
   <p id="fs-tip" class="note hidden" role="status"></p>
@@ -88,7 +97,7 @@
   </div>
 
   <!-- Fin de partida -->
-  <div id="win" class="overlay hidden">
+  <div id="win" class="hidden">
     <div class="note card">
       <h1 id="win-title"></h1>
       <p id="win-text" class="sub"></p>
@@ -98,6 +107,6 @@
 
   <div id="loading">Dibujando el tablero…</div>
 
-  <script type="module" src="js/main.js?v=20261016"></script>
+  <script type="module" src="js/main.js?v=20261021"></script>
 </body>
 </html>
