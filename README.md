@@ -23,6 +23,7 @@ Settings → Pages → *Deploy from a branch* → `main` / `(root)`.
 - `js/dice.js`: el dado de papel.
 - `js/main.js`: escena, turnos, animaciones, fiesta final e interfaz.
 - `js/fx.js`: armas, rótulos de cómic, propulsores y partículas.
-- `js/music.js`: música de la fiesta, sintetizada con WebAudio (melodía original).
+- `js/music.js`: música de la fiesta, sintetizada con WebAudio.
+- `js/tunes.js`: las cinco melodías de la fiesta (dominio público), que rotan en cada victoria: Can-Can (Offenbach), Guillermo Tell (Rossini), Turkey in the Straw (popular), Entrada de los gladiadores (Fučík) y The Entertainer (Joplin).
 - `manifest.webmanifest` e `icons/`: al añadirlo a la pantalla de inicio se abre a pantalla completa con el icono de Pingu.
 - `peluches.html`: visor 3D para ver los peluches de cerca (http://localhost:8000/peluches.html).

@@ -6,7 +6,7 @@ import { drawBoard, piecePosition, PAPER } from './board.js';
 import { makePlush, PLUSHES, plushThumbnails } from './plush.js';
 import { Dice } from './dice.js';
 import { WEAPONS, makeWeapon, makeBurst, makeJets, Particles } from './fx.js';
-import { Music, BPM } from './music.js';
+import { Music } from './music.js';
 
 const $ = (id) => document.getElementById(id);
 const TOP = 0.06; // grosor del papel
@@ -662,6 +662,7 @@ async function celebrate(id) {
   const plush = PLUSHES.find((p) => p.id === pl.plush).name;
   $('win-text').textContent = `Las cuatro fichas de ${plush} bailan en la meta.`;
   speed = 1;
+  music.next(); // cada fiesta, la siguiente pieza
   const dancers = pl.pieces.map((pc) => pieceMesh.get(pc));
   // despejar el centro: fuera el dado y las fichas de los demás que estén cerca
   dice.mesh.visible = false;
@@ -731,7 +732,7 @@ function endParty() {
 function danceStep(now) {
   if (!party) return;
   if (party.id !== runId) { endParty(); return; }
-  const beatLen = 60000 / BPM;
+  const beatLen = 60000 / music.bpm;
   const beats = (now - party.t0) / beatLen;
   const bar = Math.floor(beats / 4) % 4;
   party.dancers.forEach((m, i) => {

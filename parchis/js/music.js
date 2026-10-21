@@ -1,33 +1,45 @@
-// Música de fiesta al estilo de los dibujos animados clásicos, sintetizada con
-// WebAudio: tuba que hace «oom-pah», acordes de banjo, xilófono, caja de madera,
-// silbato de émbolo y platillo. Melodía original.
+// Música de fiesta sintetizada con WebAudio: tuba que hace «oom-pah», acordes de
+// banjo, xilófono, caja de madera, silbato de émbolo y platillo, tocando melodías
+// clásicas de dibujos animados que son de dominio público.
 
-export const BPM = 152;
-const BEAT = 60 / BPM;
+import { TUNES } from './tunes.js';
 
-const NOTE = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
-function freq(n) {
-  const m = /^([A-G]#?)(\d)$/.exec(n);
-  return 440 * Math.pow(2, (NOTE[m[1]] + (+m[2] + 1) * 12 - 69) / 12);
+// Melodías de dominio público (ver tunes.js). Cada victoria suena la siguiente.
+export const BPM = 152; // tempo por defecto si no suena música
+
+const midiFreq = (m) => 440 * Math.pow(2, (m - 69) / 12);
+const NOTE = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+const QUALITY = { '': [0, 4, 7], m: [0, 3, 7], '7': [0, 4, 7, 10], m7: [0, 3, 7, 10], dim: [0, 3, 6], maj7: [0, 4, 7, 11] };
+
+function pitchClass(name) {
+  return (NOTE[name[0]] + (name[1] === '#' ? 1 : name[1] === 'b' ? -1 : 0) + 12) % 12;
 }
 
-// 8 compases de 4 tiempos: [nota, duración en tiempos] (null = silencio)
-const MELODY = [
-  ['E5', 0.5], ['G5', 0.5], ['C6', 1], ['A5', 0.5], ['G5', 0.5], ['E5', 1],
-  ['G5', 0.5], ['F5', 0.5], ['E5', 0.5], ['D5', 0.5], ['E5', 1], ['C5', 1],
-  ['D5', 0.5], ['F5', 0.5], ['B5', 1], ['A5', 0.5], ['G5', 0.5], ['F5', 1],
-  ['G5', 0.5], ['F5', 0.5], ['D5', 0.5], ['B4', 0.5], ['D5', 1], ['G4', 1],
-  ['E5', 0.5], ['G5', 0.5], ['C6', 1], ['D6', 0.5], ['C6', 0.5], ['A5', 1],
-  ['A5', 0.5], ['C6', 0.5], ['F6', 1], ['E6', 0.5], ['D6', 0.5], ['C6', 1],
-  ['B5', 0.5], ['A5', 0.5], ['G5', 0.5], ['F5', 0.5], ['D5', 0.5], ['F5', 0.5], ['B5', 1],
-  ['C6', 1], ['G5', 0.5], ['E5', 0.5], ['C5', 1], [null, 1],
-];
-// armonía por compás: [bajo, quinta, acorde]
-const C = ['C3', 'G2', ['C4', 'E4', 'G4']];
-const G7 = ['G2', 'D3', ['B3', 'D4', 'F4']];
-const F = ['F2', 'C3', ['A3', 'C4', 'F4']];
-const HARMONY = [C, C, G7, G7, C, F, G7, C];
-const LOOP_BEATS = 32;
+// «D7», «C/E», «Fm»... -> { root, bass, tones }
+function parseChord(name) {
+  const [main, slash] = name.split('/');
+  const m = /^([A-G][#b]?)(.*)$/.exec(main);
+  const root = pitchClass(m[1]);
+  return { root, bass: slash ? pitchClass(slash) : root, tones: QUALITY[m[2]] || QUALITY[''] };
+}
+
+// prepara una pieza: notas con su instante de inicio y el acorde de cada tiempo
+function prepare(tune) {
+  let t = 0;
+  const notes = [];
+  for (const [midi, d] of tune.notes) {
+    if (midi) notes.push({ t, midi: midi + 12, d });
+    t += d;
+  }
+  const chordAt = [];
+  let ci = 0, cur = parseChord(tune.chords[0] ? tune.chords[0][1] : 'C');
+  for (let beat = 0; beat < tune.beats; beat++) {
+    while (ci < tune.chords.length && tune.chords[ci][0] <= beat + 1e-6) cur = parseChord(tune.chords[ci++][1]);
+    chordAt.push(cur);
+  }
+  return { ...tune, notes, chordAt };
+}
+const PIECES = TUNES.map(prepare);
 
 export class Music {
   constructor() {
@@ -35,7 +47,21 @@ export class Music {
     this.playing = false;
     this.muted = false;
     try { this.muted = localStorage.getItem('parchis-peluches-mute') === '1'; } catch { /* nada */ }
+    let i = -1;
+    try { i = parseInt(localStorage.getItem('parchis-peluches-tune'), 10); } catch { /* nada */ }
+    this.index = Number.isInteger(i) ? i : -1;
+    this.piece = PIECES[0];
   }
+
+  // pasa a la siguiente pieza (se llama al empezar cada fiesta)
+  next() {
+    this.index = (this.index + 1) % PIECES.length;
+    this.piece = PIECES[this.index];
+    try { localStorage.setItem('parchis-peluches-tune', String(this.index)); } catch { /* nada */ }
+    return this.piece;
+  }
+
+  get bpm() { return this.piece.bpm; }
 
   // Hay que crear el contexto dentro de un gesto del usuario (un toque o una tecla).
   unlock() {
@@ -91,35 +117,32 @@ export class Music {
   schedule() {
     if (!this.playing) return;
     const ctx = this.ctx;
-    while (this.startAt + this.nextBeat * BEAT < ctx.currentTime + 0.3) {
-      const beat = this.nextBeat % LOOP_BEATS;
-      const t = this.startAt + this.nextBeat * BEAT;
-      const loop = Math.floor(this.nextBeat / LOOP_BEATS);
+    const beatLen = 60 / this.piece.bpm, loopBeats = this.piece.beats;
+    while (this.startAt + this.nextBeat * beatLen < ctx.currentTime + 0.3) {
+      const beat = this.nextBeat % loopBeats;
+      const t = this.startAt + this.nextBeat * beatLen;
+      const loop = Math.floor(this.nextBeat / loopBeats);
       this.playBeat(beat, t, loop);
       this.nextBeat++;
     }
   }
 
   playBeat(beat, t, loop) {
-    const bar = Math.floor(beat / 4), inBar = beat % 4;
-    const [root, fifth, chord] = HARMONY[bar];
-    // tuba: oom en 1 y 3; banjo: pah en 2 y 4
-    if (inBar === 0) this.tuba(t, root);
-    if (inBar === 2) this.tuba(t, fifth);
-    if (inBar === 1 || inBar === 3) for (const n of chord) this.banjo(t, n);
-    // caja de madera a contratiempo y un «boing» al final de cada vuelta
+    const piece = this.piece, BEAT = 60 / piece.bpm;
+    const inBar = beat % 4;
+    const ch = piece.chordAt[beat];
+    // tuba: oom en 1 y 3 (fundamental y quinta); banjo: pah en 2 y 4
+    const low = (pc) => 40 + ((pc + 8) % 12); // entre Mi2 y Re#3, que se oye bien en altavoces pequeños
+    if (inBar === 0) this.tuba(t, low(ch.bass), BEAT);
+    if (inBar === 2) this.tuba(t, low(ch.root + 7), BEAT);
+    if (inBar === 1 || inBar === 3) for (const iv of ch.tones) this.banjo(t, 57 + ((ch.root + iv) % 12));
+    // caja de madera a contratiempo, platillo al empezar cada vuelta y «boing» al acabarla
     this.woodblock(t + BEAT / 2, inBar % 2 ? 1500 : 1100);
-    if (beat === LOOP_BEATS - 1) this.slideWhistle(t, BEAT * 0.9, 1400, 600);
     if (beat === 0 && loop > 0) this.cymbal(t, 0.8);
-    // melodía: busca las notas que empiezan dentro de este tiempo
-    let pos = 0;
-    const octave = loop % 2 ? 2 : 1; // en las vueltas impares, la melodía una octava más aguda
-    for (const [n, d] of MELODY) {
-      if (pos >= beat && pos < beat + 1 && n) {
-        const tt = t + (pos - beat) * BEAT;
-        this.xylophone(tt, freq(n) * (octave === 2 ? 2 : 1), Math.min(d, 1) * BEAT);
-      }
-      pos += d;
+    if (beat === piece.beats - 1) this.slideWhistle(t, BEAT * 0.9, 1400, 600);
+    // melodía: las notas que empiezan dentro de este tiempo
+    for (const n of piece.notes) {
+      if (n.t >= beat && n.t < beat + 1) this.xylophone(t + (n.t - beat) * BEAT, midiFreq(n.midi), Math.min(n.d, 1) * BEAT);
     }
   }
 
@@ -147,12 +170,13 @@ export class Music {
     }
   }
 
-  tuba(t, n) {
+  tuba(t, midi, BEAT) {
     const ctx = this.ctx, g = this.out(t, 0.5);
     const o = ctx.createOscillator(), lp = ctx.createBiquadFilter();
+    const f = midiFreq(midi);
     o.type = 'sawtooth';
-    o.frequency.setValueAtTime(freq(n) * 0.97, t);
-    o.frequency.linearRampToValueAtTime(freq(n), t + 0.05);
+    o.frequency.setValueAtTime(f * 0.97, t);
+    o.frequency.linearRampToValueAtTime(f, t + 0.05);
     lp.type = 'lowpass';
     lp.frequency.setValueAtTime(900, t);
     lp.frequency.exponentialRampToValueAtTime(260, t + 0.3);
@@ -164,11 +188,11 @@ export class Music {
     o.stop(t + BEAT);
   }
 
-  banjo(t, n) {
+  banjo(t, midi) {
     const ctx = this.ctx, g = this.out(t, 0.3);
     const o = ctx.createOscillator(), hp = ctx.createBiquadFilter();
     o.type = 'square';
-    o.frequency.value = freq(n);
+    o.frequency.value = midiFreq(midi);
     hp.type = 'bandpass';
     hp.frequency.value = 1800;
     hp.Q.value = 0.8;
