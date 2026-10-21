@@ -1080,24 +1080,13 @@ function frameCamera(color = viewColor) {
   controls.update();
 }
 
-// Coloca el marcador y la barra y deja el tablero en el hueco que queda libre:
-// en horizontal, una columna a la izquierda; en vertical, arriba y abajo.
+// Coloca el marcador y la barra según la orientación. El tablero ocupa siempre
+// toda la pantalla y no se recoloca solo: los paneles flotan encima, translúcidos.
 function layoutStage() {
   const W = window.innerWidth, H = window.innerHeight;
   const side = W / H > 1.15 && W >= 700;
   document.body.classList.toggle('side', side);
   document.body.classList.toggle('stack', !side);
-  const inGame = !$('hud').classList.contains('hidden') && !document.body.classList.contains('celebrating');
-  let top = 0, left = 0, bottom = 0;
-  if (inGame) {
-    const hud = $('hud').getBoundingClientRect(), bar = $('bar').getBoundingClientRect();
-    if (side) left = Math.max(hud.right, bar.right) + 6;
-    else { top = hud.bottom + 4; bottom = H - bar.top + 4; }
-  }
-  const st = stageEl.style;
-  const changed = st.top !== top + 'px' || st.left !== left + 'px' || st.bottom !== bottom + 'px';
-  st.top = top + 'px'; st.left = left + 'px'; st.bottom = bottom + 'px'; st.right = '0px';
-  if (changed) { resize(); if (!party) frameCamera(); }
 }
 
 function resize() {
@@ -1106,9 +1095,7 @@ function resize() {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
-window.addEventListener('resize', () => { resize(); layoutStage(); if (!party) frameCamera(); });
-new ResizeObserver(() => layoutStage()).observe($('hud'));
-new ResizeObserver(() => layoutStage()).observe($('bar'));
+window.addEventListener('resize', () => { layoutStage(); resize(); if (!party) frameCamera(); });
 
 function loop(now) {
   // las animaciones avanzan antes de pintar
