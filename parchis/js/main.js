@@ -784,7 +784,8 @@ function danceStep(now) {
   if (!party) return;
   if (party.id !== runId) { endParty(); return; }
   const beatLen = 60000 / music.bpm;
-  const beats = (now - party.t0) / beatLen;
+  // el primer fotograma puede llegar con un instante algo anterior al inicio
+  const beats = Math.max(0, (now - party.t0) / beatLen);
   const barIdx = Math.floor(beats / 4);
   const move = barIdx % MOVES.length, prev = (barIdx + MOVES.length - 1) % MOVES.length;
   const blend = barIdx === 0 ? 1 : ease((beats % 4) / 1); // fundido durante el primer tiempo
