@@ -721,6 +721,7 @@ function endParty() {
   for (const m of party.dancers) {
     m.userData.body.position.set(0, 0, 0);
     m.userData.body.rotation.set(0, 0, 0);
+    m.userData.body.scale.set(1, 1, 1);
     m.position.y = TOP;
   }
   party = null;
@@ -728,50 +729,81 @@ function endParty() {
   controls.enabled = true;
 }
 
-// coreografía de 8 tiempos al compás de la música
+// Coreografía al compás de la música: un paso por compás (4 tiempos). Cada paso es
+// una curva continua y, al cambiar de paso, el anterior se funde con el siguiente
+// durante el primer tiempo, así que no hay tirones.
+const ease = (x) => { const k = Math.min(1, Math.max(0, x)); return k * k * (3 - 2 * k); };
+const bump = (x) => (1 - Math.cos(2 * Math.PI * x)) / 2; // 0 → 1 → 0, suave en los extremos
+
+const MOVES = [
+  // balanceo de coro: todos a la vez, de lado a lado
+  (beats) => {
+    const ph = beats * Math.PI;
+    return { tiltZ: Math.sin(ph) * 0.2, slideX: Math.sin(ph) * 0.1, jump: bump(beats) * 0.08, arms: Math.sin(ph) * 0.6 };
+  },
+  // patadas de cabaret: se inclinan hacia atrás y vuelven, con saltito en cada tiempo
+  (beats) => {
+    const ph = beats * Math.PI;
+    return { tiltX: -0.22 * bump(beats), tiltZ: Math.sin(ph) * 0.1, jump: bump(beats) * 0.16, arms: -0.4 - 0.3 * bump(beats) };
+  },
+  // la ola: saltan uno detrás de otro dando una vuelta
+  (beats, i) => {
+    const e = ease(((beats % 4) - i * 0.45) / 2.2);
+    return { jump: Math.sin(Math.PI * e) * 0.75, yaw: Math.PI * 2 * e, arms: -1.1 * Math.sin(Math.PI * e) };
+  },
+  // giro lento todos juntos con los brazos arriba
+  (beats) => {
+    const e = ease((beats % 4) / 4);
+    return { yaw: Math.PI * 2 * e, jump: Math.sin(Math.PI * e) * 0.3, arms: -1.2 + Math.sin(beats * Math.PI) * 0.25 };
+  },
+  // el coro de la patata: se agachan tres veces («pa-ta-ta») y en la cuarta saltan con los brazos arriba
+  (beats) => {
+    const b = beats % 4;
+    if (b < 3) {
+      const d = bump(b);
+      return { crouch: 0.22 * d, tiltX: 0.12 * d, arms: 0.5 * d };
+    }
+    const e = b - 3;
+    return { jump: bump(e) * 0.5, arms: -1.3 * bump(e), crouch: -0.06 * bump(e) };
+  },
+];
+
+function poseOf(move, beats, i) {
+  return { tiltX: 0, tiltZ: 0, slideX: 0, jump: 0, yaw: 0, arms: 0, crouch: 0, ...MOVES[move](beats, i) };
+}
+
+function mixPose(a, b, w) {
+  const out = {};
+  for (const k in a) out[k] = a[k] + (b[k] - a[k]) * w;
+  return out;
+}
+
+const REST = { tiltX: 0, tiltZ: 0, slideX: 0, jump: 0, yaw: 0, arms: 0, crouch: 0 };
+
 function danceStep(now) {
   if (!party) return;
   if (party.id !== runId) { endParty(); return; }
   const beatLen = 60000 / music.bpm;
   const beats = (now - party.t0) / beatLen;
-  const bar = Math.floor(beats / 4) % 4;
+  const barIdx = Math.floor(beats / 4);
+  const move = barIdx % MOVES.length, prev = (barIdx + MOVES.length - 1) % MOVES.length;
+  const blend = barIdx === 0 ? 1 : ease((beats % 4) / 1); // fundido durante el primer tiempo
+  const start = ease(beats / 1.5); // al empezar, sale suave desde quietos
   party.dancers.forEach((m, i) => {
     const { body, armL, armR } = m.userData;
-    const b = beats % 4, ph = beats * Math.PI;
-    body.position.set(0, 0, 0);
-    body.rotation.set(0, 0, 0);
-    m.rotation.y = party.faceYaw;
-    let jump = 0; // los saltos levantan la ficha entera, con su peana
-    if (bar === 0) {
-      // balanceo de coro: todos a la vez, de lado a lado
-      body.rotation.z = Math.sin(ph) * 0.22;
-      body.position.x = Math.sin(ph) * 0.12;
-      body.position.y = Math.abs(Math.sin(ph)) * 0.12;
-    } else if (bar === 1) {
-      // patadas de cabaret alternando, con saltito
-      const side = Math.floor(beats * 2) % 2 ? 1 : -1;
-      body.rotation.x = -0.25 * Math.abs(Math.sin(ph * 2));
-      body.rotation.z = side * 0.12;
-      jump = Math.abs(Math.sin(ph * 2)) * 0.22;
-    } else if (bar === 2) {
-      // la ola: saltan uno detrás de otro con media vuelta
-      const k = (b - i * 0.5);
-      if (k > 0 && k < 1.2) {
-        const e = k / 1.2;
-        jump = Math.sin(Math.PI * e) * 0.9;
-        m.rotation.y = party.faceYaw + Math.PI * 2 * e;
-      }
-    } else {
-      // brazos arriba y giro todos juntos
-      const e = (b % 2) / 2;
-      m.rotation.y = party.faceYaw + Math.PI * 2 * smooth(e);
-      jump = Math.sin(Math.PI * e) * 0.45;
-    }
-    m.position.y = TOP + jump;
-    // brazos: arriba y abajo alternando, como un coro
-    const wave = Math.sin(ph + (bar === 2 ? i : 0)) * 0.7;
-    if (armL) armL.rotation.x = -wave - (bar === 3 ? 1.2 : 0);
-    if (armR) armR.rotation.x = wave - (bar === 3 ? 1.2 : 0);
+    let pose = poseOf(move, beats, i);
+    if (blend < 1) pose = mixPose(poseOf(prev, beats, i), pose, blend);
+    pose = mixPose(REST, pose, start);
+    body.position.set(pose.slideX, 0, 0);
+    body.rotation.set(pose.tiltX, 0, pose.tiltZ);
+    const sq = 1 - pose.crouch;
+    body.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
+    m.rotation.y = party.faceYaw + pose.yaw;
+    m.position.y = TOP + pose.jump;
+    // brazos: se mueven en espejo, como un coro
+    const swing = Math.sin(beats * Math.PI + i * 0.4) * 0.25 * start;
+    if (armL) armL.rotation.x = pose.arms - swing;
+    if (armR) armR.rotation.x = pose.arms + swing;
   });
   // fuegos artificiales
   if (now > party.nextFw) {
