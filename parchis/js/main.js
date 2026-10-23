@@ -16,14 +16,37 @@ const DEFAULT_PLUSH = ['pinguino', 'conejita', 'panda', 'unicornio'];
 // Escena
 // ------------------------------------------------------------------
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Modo ligero: menos memoria gráfica para tablets y móviles modestos. Se activa
+// solo si el aparato tiene poca memoria, si ya se perdió el 3D una vez, o con ?ligero
+const LIGHT = (() => {
+  try {
+    if (/[?&]ligero\b/.test(location.search) || sessionStorage.getItem('parchis-ligero') === '1') return true;
+  } catch { /* nada */ }
+  const mem = navigator.deviceMemory || 8;
+  const big = Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1) > 2200;
+  return mem <= 4 || (big && mem <= 6);
+})();
+window.PARCHIS_LIGHT = LIGHT;
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: !LIGHT, alpha: true, powerPreference: 'default' });
+} catch (e) {
+  throw new Error('Este navegador no puede usar gráficos 3D (WebGL). ' + (e && e.message ? e.message : ''));
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LIGHT ? 1.25 : 2));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = LIGHT ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+// si la tablet se queda sin memoria gráfica, se recarga en modo ligero
+renderer.domElement.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  try { sessionStorage.setItem('parchis-ligero', '1'); } catch { /* nada */ }
+  if (window.parchisFail) window.parchisFail('Se perdió el 3D por falta de memoria gráfica. Recargando en modo ligero…', true);
+});
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
 $('stage').appendChild(renderer.domElement);
-const maxAniso = renderer.capabilities.getMaxAnisotropy();
+const maxAniso = Math.min(renderer.capabilities.getMaxAnisotropy(), LIGHT ? 4 : 16);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color('#3b281c');
@@ -40,7 +63,7 @@ scene.add(new THREE.HemisphereLight('#fff6e8', '#5a4030', 1.1));
 const sun = new THREE.DirectionalLight('#fff1dc', 2.2);
 sun.position.set(9, 22, 12);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(LIGHT ? 1024 : 2048, LIGHT ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -16, right: 16, top: 16, bottom: -16, near: 1, far: 60 });
 sun.shadow.bias = -0.0005;
 sun.shadow.normalBias = 0.02;
@@ -87,7 +110,7 @@ boardGroup.rotation.y = 0.035;
 scene.add(boardGroup);
 
 const boardCanvas = document.createElement('canvas');
-boardCanvas.width = boardCanvas.height = Math.min(renderer.capabilities.maxTextureSize, 3072);
+boardCanvas.width = boardCanvas.height = Math.min(renderer.capabilities.maxTextureSize, LIGHT ? 2048 : 3072);
 const boardTex = new THREE.CanvasTexture(boardCanvas);
 boardTex.colorSpace = THREE.SRGBColorSpace;
 boardTex.anisotropy = maxAniso;
@@ -105,7 +128,9 @@ function makePen() {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.CylinderGeometry(0.22, 0.22, 7, 6),
-    new THREE.MeshPhysicalMaterial({ color: '#dfe7ef', roughness: 0.15, transmission: 0.6, thickness: 0.4 }),
+    LIGHT
+      ? new THREE.MeshStandardMaterial({ color: '#dfe7ef', roughness: 0.2, transparent: true, opacity: 0.7 })
+      : new THREE.MeshPhysicalMaterial({ color: '#dfe7ef', roughness: 0.15, transmission: 0.6, thickness: 0.4 }),
   );
   body.rotation.z = Math.PI / 2;
   const refill = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 6.6, 8), new THREE.MeshStandardMaterial({ color: '#1d2f78' }));
@@ -1183,9 +1208,10 @@ async function init() {
   }
   buildSetup();
   $('loading').remove();
+  window.parchisReady = true;
   requestAnimationFrame(loop);
 }
-init();
+init().catch((e) => { if (window.parchisFail) window.parchisFail(e && e.message ? e.message : String(e)); else throw e; });
 
 // Para depurar desde la consola
 window.parchis = { get game() { return game; }, get pieces() { return pieceMesh; }, get party() { return party; }, music, highlighted, camera, controls, animateMove, settle };

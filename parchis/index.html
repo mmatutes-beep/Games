@@ -15,18 +15,74 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=20261024">
+  <link rel="stylesheet" href="css/style.css?v=20261025">
+  <!-- Aviso si el juego no arranca: script clásico, funciona aunque falle el resto -->
+  <script>
+  (function () {
+    var shown = false;
+    function info() {
+      var gl = 'no', max = '?', gpu = '?';
+      try {
+        var c = document.createElement('canvas');
+        var g = c.getContext('webgl2') || c.getContext('webgl');
+        if (g) {
+          gl = (typeof WebGL2RenderingContext !== 'undefined' && g instanceof WebGL2RenderingContext) ? 'WebGL2' : 'WebGL1';
+          max = g.getParameter(g.MAX_TEXTURE_SIZE);
+          var ext = g.getExtension('WEBGL_debug_renderer_info');
+          if (ext) gpu = g.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+        }
+      } catch (e) {}
+      var im = (window.HTMLScriptElement && HTMLScriptElement.supports) ? (HTMLScriptElement.supports('importmap') ? 'sí' : 'no') : 'desconocido';
+      return 'Navegador: ' + navigator.userAgent +
+        '\nPantalla: ' + screen.width + '×' + screen.height + ' × ' + (window.devicePixelRatio || 1) +
+        '\nMemoria: ' + (navigator.deviceMemory ? navigator.deviceMemory + ' GB' : 'desconocida') +
+        '\n3D: ' + gl + ' · textura máx. ' + max + ' · ' + gpu +
+        '\nImport maps: ' + im + ' · Modo ligero: ' + (window.PARCHIS_LIGHT ? 'sí' : 'no');
+    }
+    window.parchisFail = function (msg, reloadLight) {
+      if (reloadLight) {
+        setTimeout(function () { location.href = location.pathname + '?ligero=1'; }, 1500);
+      }
+      if (shown) return;
+      shown = true;
+      var box = document.createElement('div');
+      box.id = 'boot-error';
+      box.setAttribute('role', 'alert');
+      box.innerHTML = '<h2>El juego no ha podido arrancar</h2><p class="why"></p>' +
+        '<p>Haz una captura de esta pantalla y envíala para revisarlo.</p><pre></pre>' +
+        '<p><button type="button" class="light">Probar en modo ligero</button> <button type="button" class="again">Recargar</button></p>';
+      box.querySelector('.why').textContent = msg;
+      box.querySelector('pre').textContent = info();
+      box.querySelector('.light').onclick = function () { location.href = location.pathname + '?ligero=1'; };
+      box.querySelector('.again').onclick = function () { location.reload(); };
+      (document.body || document.documentElement).appendChild(box);
+    };
+    window.addEventListener('error', function (e) {
+      if (window.parchisReady) return;
+      parchisFail((e.message || 'Error al cargar') + (e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ')' : ''));
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      if (window.parchisReady) return;
+      parchisFail('Error: ' + (e.reason && e.reason.message ? e.reason.message : e.reason));
+    });
+    if (window.HTMLScriptElement && HTMLScriptElement.supports && !HTMLScriptElement.supports('importmap')) {
+      window.addEventListener('DOMContentLoaded', function () { parchisFail('Este navegador es demasiado antiguo para el juego (no admite «import maps»). Actualiza Chrome o Samsung Internet desde la tienda de aplicaciones.'); });
+    }
+    // si en 30 segundos no ha terminado de cargar, mostrar qué se sabe
+    setTimeout(function () { if (!window.parchisReady) parchisFail('El juego tarda demasiado en cargar.'); }, 30000);
+  })();
+  </script>
   <script type="importmap">
     {
       "imports": {
         "three": "./vendor/three.module.min.js",
-        "./js/rules.js": "./js/rules.js?v=20261024",
-        "./js/board.js": "./js/board.js?v=20261024",
-        "./js/plush.js": "./js/plush.js?v=20261024",
-        "./js/dice.js": "./js/dice.js?v=20261024",
-        "./js/fx.js": "./js/fx.js?v=20261024",
-        "./js/music.js": "./js/music.js?v=20261024",
-        "./js/tunes.js": "./js/tunes.js?v=20261024"
+        "./js/rules.js": "./js/rules.js?v=20261025",
+        "./js/board.js": "./js/board.js?v=20261025",
+        "./js/plush.js": "./js/plush.js?v=20261025",
+        "./js/dice.js": "./js/dice.js?v=20261025",
+        "./js/fx.js": "./js/fx.js?v=20261025",
+        "./js/music.js": "./js/music.js?v=20261025",
+        "./js/tunes.js": "./js/tunes.js?v=20261025"
       }
     }
   </script>
@@ -107,6 +163,6 @@
 
   <div id="loading">Dibujando el tablero…</div>
 
-  <script type="module" src="js/main.js?v=20261024"></script>
+  <script type="module" src="js/main.js?v=20261025"></script>
 </body>
 </html>

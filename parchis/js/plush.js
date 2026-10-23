@@ -49,7 +49,7 @@ function canvasTex(S, paint, repeat = 1) {
 
 let furTex = null;
 function getFur() {
-  furTex ||= canvasTex(256, (ctx, S) => {
+  if (!furTex) furTex = canvasTex(256, (ctx, S) => {
     ctx.fillStyle = '#e2e2e2';
     ctx.fillRect(0, 0, S, S);
     furStrokes(ctx, S);
@@ -91,7 +91,7 @@ function ball(mat, r, x, y, z, sx = 1, sy = 1, sz = 1) {
 // Punto de ganchillo: filas de bucles abultados.
 let crochetTex = null;
 function getCrochet() {
-  crochetTex ||= canvasTex(256, (ctx, S) => {
+  if (!crochetTex) crochetTex = canvasTex(256, (ctx, S) => {
     ctx.fillStyle = '#c4c4c4';
     ctx.fillRect(0, 0, S, S);
     const cw = 16, rh = 14;
@@ -115,7 +115,7 @@ function getCrochet() {
 // Purpurina: motas brillantes de colores.
 let glitterTex = null;
 function getGlitter() {
-  glitterTex ||= canvasTex(128, (ctx, S) => {
+  if (!glitterTex) glitterTex = canvasTex(128, (ctx, S) => {
     ctx.fillStyle = '#b8b8b8';
     ctx.fillRect(0, 0, S, S);
     for (let i = 0; i < 1400; i++) {
@@ -234,7 +234,7 @@ function getHunny() {
 // Punto de media: columnas de uves, para gorros y bufandas de lana.
 let knitTex = null;
 function getKnit() {
-  knitTex ||= canvasTex(128, (ctx, S) => {
+  if (!knitTex) knitTex = canvasTex(128, (ctx, S) => {
     ctx.fillStyle = '#9c9c9c';
     ctx.fillRect(0, 0, S, S);
     ctx.lineCap = 'round';
@@ -324,7 +324,7 @@ function getOzitaBody() {
 // Punto «tweed» teja con motitas crema y naranja (ya coloreado).
 let tweedTex = null;
 function getTweed() {
-  tweedTex ||= canvasTex(256, (ctx, S) => {
+  if (!tweedTex) tweedTex = canvasTex(256, (ctx, S) => {
     ctx.fillStyle = '#a55638';
     ctx.fillRect(0, 0, S, S);
     for (let y = 0; y < S; y += 4) {
@@ -343,7 +343,7 @@ function getTweed() {
 // Chenilla: rizos cortos y apretados para la barriga y la cola de Foxy.
 let chenilleTex = null;
 function getChenille() {
-  chenilleTex ||= canvasTex(256, (ctx, S) => {
+  if (!chenilleTex) chenilleTex = canvasTex(256, (ctx, S) => {
     ctx.fillStyle = '#6a6a6a';
     ctx.fillRect(0, 0, S, S);
     ctx.lineCap = 'round';
@@ -363,7 +363,7 @@ function getChenille() {
 // Pelo largo: mechones verticales para Bananito.
 let shagTex = null;
 function getShag() {
-  shagTex ||= canvasTex(256, (ctx, S) => {
+  if (!shagTex) shagTex = canvasTex(256, (ctx, S) => {
     ctx.fillStyle = '#ececec';
     ctx.fillRect(0, 0, S, S);
     ctx.lineCap = 'round';

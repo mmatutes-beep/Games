@@ -262,3 +262,18 @@ body.celebrating #hud, body.celebrating #bar { display: none !important; }
   .seat .plush img { width: 36px; height: 36px; }
   .pick img { width: 80px; height: 80px; }
 }
+
+/* Aviso de arranque fallido */
+#boot-error {
+  position: fixed; inset: 16px; z-index: 50; overflow: auto;
+  background: var(--paper); color: var(--ink);
+  border-radius: 6px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  padding: 16px 20px; font-size: 20px;
+}
+#boot-error h2 { margin: 0 0 6px; }
+#boot-error pre {
+  white-space: pre-wrap; word-break: break-word;
+  font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace;
+  background: rgba(29, 47, 120, 0.06); padding: 8px 10px; border-radius: 4px;
+}
+#boot-error button { font: inherit; font-size: 20px; padding: 4px 14px; border: 2px solid var(--ink); border-radius: 8px; background: transparent; color: var(--ink); }
