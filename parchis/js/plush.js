@@ -460,11 +460,56 @@ function getBoatTee() {
   return boatTee;
 }
 
+// Camisa de estética japonesa: añil con olas (seigaiha), flores de cerezo y un sol rojo.
+let japanShirt = null;
+function getJapanShirt() {
+  if (japanShirt) return japanShirt;
+  const W = 1024, H = 512;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const c = cv.getContext('2d');
+  c.fillStyle = '#1e2c55';
+  c.fillRect(0, 0, W, H);
+  // olas en escamas
+  const R = 34;
+  for (let row = -1; row * R * 0.5 < H + R; row++) {
+    for (let col = -1; col * R * 2 < W + R * 2; col++) {
+      const x = col * R * 2 + (row % 2 ? R : 0), y = row * R * 0.5 + H * 0.45;
+      if (y < H * 0.42) continue;
+      for (let k = 3; k >= 1; k--) {
+        c.beginPath();
+        c.arc(x, y, (R * k) / 3, Math.PI, 0);
+        c.fillStyle = k % 2 ? '#2c4a86' : '#e8eef6';
+        c.fill();
+      }
+    }
+  }
+  // sol rojo
+  c.fillStyle = '#d23a32';
+  c.beginPath(); c.arc(W * 0.62, H * 0.24, 70, 0, Math.PI * 2); c.fill();
+  // flores de cerezo
+  const sakura = (x, y, r) => {
+    c.fillStyle = '#f6b8c8';
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i * Math.PI * 2) / 5;
+      c.beginPath(); c.ellipse(x + Math.cos(a) * r * 0.6, y + Math.sin(a) * r * 0.6, r * 0.55, r * 0.38, a, 0, Math.PI * 2); c.fill();
+    }
+    c.fillStyle = '#f3d36b';
+    c.beginPath(); c.arc(x, y, r * 0.2, 0, Math.PI * 2); c.fill();
+  };
+  [[120, 90, 26], [260, 170, 20], [380, 70, 18], [760, 120, 24], [880, 200, 18], [940, 60, 22], [560, 300, 16], [60, 260, 18]].forEach(([x, y, r]) => sakura(x, y, r));
+  japanShirt = new THREE.CanvasTexture(cv);
+  japanShirt.colorSpace = THREE.SRGBColorSpace;
+  return japanShirt;
+}
+
 const SKIN = { light: '#f1cdb0', tan: '#e7b48e', sun: '#dca07a' };
 
 function person(g, o) {
   const skin = new THREE.MeshPhysicalMaterial({ color: SKIN[o.skin || 'light'], roughness: 0.9, sheen: 0.4, sheenColor: new THREE.Color('#ffffff') });
-  const hair = fabric(o.hairColor, getShag(), getShag(), 1.2);
+  const hair = o.sleekHair
+    ? new THREE.MeshPhysicalMaterial({ color: o.hairColor, roughness: 0.55, sheen: 1, sheenColor: new THREE.Color('#fff4d0'), sheenRoughness: 0.35 })
+    : fabric(o.hairColor, getShag(), getShag(), 1.2);
   const top = o.topMap
     ? new THREE.MeshPhysicalMaterial({ map: o.topMap, bumpMap: getFur(), bumpScale: 0.3, roughness: 1, sheen: 0.6, sheenColor: new THREE.Color('#ffffff') })
     : fabric(o.top, getFur(), getFur(), 0.4);
@@ -497,11 +542,12 @@ function person(g, o) {
     body.add(part(new THREE.BoxGeometry(0.06, 0.04, 0.015), new THREE.MeshStandardMaterial({ color: '#c9ced6', metalness: 0.8, roughness: 0.3 }), 0, 0.7, 0.128));
   }
   // torso
-  const torso = part(new THREE.CylinderGeometry(o.chest || 0.155, 0.17, 0.42, 32), top, 0, 0.9, 0);
+  const sh = o.shoulders || 1; // anchura de hombros
+  const torso = part(new THREE.CylinderGeometry((o.chest || 0.155) * sh, 0.17, 0.42, 32), top, 0, 0.9, 0);
   torso.rotation.y = Math.PI; // el estampado hacia delante
   torso.scale.z = 0.72;
   body.add(torso);
-  body.add(ball(sleeveMat, 0.155, 0, 1.1, 0, 1.05, 0.35, 0.72));
+  body.add(ball(sleeveMat, 0.155, 0, 1.1, 0, 1.05 * sh, 0.35, 0.72));
   // cuello de la prenda
   if (o.collar === 'v') {
     stitch(body, [-0.06, 1.15, 0.1], [0, 1.03, 0.115], '#d9d4ca', 0.008);
@@ -514,6 +560,15 @@ function person(g, o) {
       body.add(flap);
     }
     stitch(body, [0, 1.12, 0.112], [0, 1.03, 0.118], '#5a4448', 0.006);
+  } else if (o.collar === 'shirt') {
+    // camisa abierta: solapas, botones y la piel del escote
+    body.add(ball(skin, 0.045, 0, 1.11, 0.095, 1, 1.5, 0.3));
+    for (const s of [-1, 1]) {
+      const flap = part(new THREE.BoxGeometry(0.08, 0.1, 0.012), sleeveMat, s * 0.06, 1.1, 0.11);
+      flap.rotation.set(-0.35, s * 0.3, s * 0.45);
+      body.add(flap);
+    }
+    for (let i = 0; i < 4; i++) body.add(ball(shiny('#e8e4da'), 0.009, 0.012, 1.0 - i * 0.085, 0.118));
   } else if (o.collar === 'studs') {
     for (let i = 0; i < 9; i++) {
       const a = -0.9 + i * 0.225;
@@ -524,10 +579,16 @@ function person(g, o) {
   const long = o.sleeves === 'long';
   const arms = [-1, 1].map((s) => {
     const arm = new THREE.Group();
-    arm.position.set(s * 0.195, 1.08, 0);
-    arm.rotation.z = s * 0.1;
+    arm.position.set(s * (0.195 + (sh - 1) * 0.17), 1.08, 0);
+    arm.rotation.z = s * (0.1 + (sh - 1) * 0.3);
     arm.add(ball(sleeveMat, 0.075, 0, -0.04, 0, 1, 1.3, 1));
-    if (long) {
+    if (o.muscles) {
+      // brazos musculosos: bíceps y antebrazo marcados
+      arm.add(part(new THREE.CapsuleGeometry(0.054, 0.34, 6, 12), skin, 0, -0.27, 0));
+      arm.add(ball(skin, 0.064, 0, -0.16, 0.01, 1, 1.6, 1));
+      arm.add(ball(skin, 0.06, 0, -0.36, 0.008, 1, 1.7, 0.92));
+      arm.add(ball(skin, 0.058, 0, -0.53, 0.01, 0.9, 1.2, 0.8));
+    } else if (long) {
       arm.add(part(new THREE.CapsuleGeometry(0.055, 0.34, 6, 12), sleeveMat, 0, -0.25, 0));
       arm.add(ball(skin, 0.05, 0, -0.5, 0.01, 0.9, 1.2, 0.8));
     } else {
@@ -545,7 +606,36 @@ function person(g, o) {
   head.add(ball(skin, 0.155, 0, 0, 0, o.wideFace ? 0.95 : 0.88, 1.08, 0.95));
   for (const s of [-1, 1]) head.add(ball(skin, 0.022, s * 0.138, 0, -0.005, 0.5, 1, 0.8)); // orejas
   // pelo
-  if (o.hair === 'long') {
+  if (o.hair === 'straight') {
+    // melena lisa que cae recta: casquete con raya al lado y cortinas de pelo
+    const cap = part(new THREE.SphereGeometry(1, 32, 18, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, 0, 0.012, -0.008);
+    cap.scale.set(0.155 * 0.92, 0.155 * 1.14, 0.155 * 1.0);
+    cap.rotation.x = -0.25;
+    head.add(cap);
+    for (const s of [-1, 1]) {
+      const curtain = part(new THREE.BoxGeometry(0.05, 0.42, 0.13), hair, s * 0.13, -0.13, -0.025);
+      curtain.rotation.z = -s * 0.06;
+      head.add(curtain);
+      head.add(ball(hair, 1, s * 0.13, 0.08, -0.025, 0.035, 0.08, 0.075)); // redondea el arranque
+    }
+    head.add(part(new THREE.BoxGeometry(0.25, 0.48, 0.045), hair, 0, -0.14, -0.12));
+    // flequillo ladeado
+    const bang = ball(hair, 1, 0.035, 0.115, 0.095, 0.1, 0.045, 0.05);
+    bang.rotation.z = -0.35;
+    head.add(bang);
+  } else if (o.hair === 'pompadour') {
+    // tupé a lo James Dean: laterales cortos y una onda alta peinada hacia atrás
+    const hx = 0.155 * (o.wideFace ? 0.95 : 0.88), hy = 0.155 * 1.08, hz = 0.155 * 0.95;
+    const cap = part(new THREE.SphereGeometry(1, 32, 18, 0, Math.PI * 2, 0, Math.PI * 0.5), hair, 0, 0.012, -0.006);
+    cap.scale.set(hx * 1.04, hy * 1.04, hz * 1.04);
+    cap.rotation.x = -0.3;
+    head.add(cap);
+    head.add(ball(hair, 1, 0, -0.035, -0.05, hx * 1.0, hy * 0.62, 0.105));
+    // la onda: volumen alto sobre la frente que se va peinando hacia atrás
+    const quiff = ball(hair, 1, 0.006, 0.125, 0.03, hx * 0.86, 0.075, 0.155);
+    quiff.rotation.x = -0.32;
+    head.add(quiff);
+  } else if (o.hair === 'long') {
     for (const s of [-1, 1]) {
       const cap = ball(hair, 0.15, s * 0.05, 0.06, -0.02, 0.85, 0.85, 1.05);
       cap.rotation.z = s * -0.25;
@@ -566,7 +656,7 @@ function person(g, o) {
     cap.rotation.x = -0.28;
     head.add(cap);
     // nuca
-    head.add(ball(hair, 1, 0, -0.035, -0.012, hx * k * 0.96, hy * 0.62, hz * k * 0.93));
+    head.add(ball(hair, 1, 0, -0.035, -0.05, hx * k * 0.97, hy * 0.62, 0.105));
     if (o.hair === 'messy') {
       for (let i = 0; i < 5; i++) head.add(ball(hair, 0.045, -0.08 + i * 0.04, 0.13 + (i % 2) * 0.01, 0.06, 1, 0.6, 0.9));
     }
@@ -584,7 +674,9 @@ function person(g, o) {
       head.add(ball(shiny(iris), 0.012, ex, ey, ez + 0.006, 1, 1, 0.4));
       head.add(ball(shiny('#140d0a'), 0.006, ex, ey, ez + 0.01, 1, 1, 0.4));
       head.add(ball(shiny('#ffffff'), 0.003, ex + 0.004, ey + 0.004, ez + 0.013));
-      stitch(head, [ex - s * 0.022, ey + 0.035, ez - 0.004], [ex + s * 0.024, ey + 0.04, ez - 0.002], o.brows || '#3b2618', 0.004);
+      const bIn = o.mood === 'serious' ? 0.034 : o.mood === 'shy' ? 0.046 : 0.035;
+      const bOut = o.mood === 'serious' ? 0.036 : 0.04;
+      stitch(head, [ex - s * 0.022, ey + bIn, ez - 0.004], [ex + s * 0.024, ey + bOut, ez - 0.002], o.brows || '#3b2618', o.mood === 'serious' ? 0.005 : 0.004);
     }
   } else {
     // gafas de sol de espejo azul con montura transparente
@@ -600,14 +692,33 @@ function person(g, o) {
     stitch(head, [-0.016, 0.03, 0.155], [0.016, 0.03, 0.155], '#d8dde2', 0.004);
   }
   head.add(ball(skin, 0.018, 0, -0.025, 0.155, 0.9, 1, 0.8));
-  const grin = part(new THREE.TorusGeometry(0.032, 0.0055, 6, 20, Math.PI * 0.75), shiny('#b9605c'), 0, -0.058, 0.142);
-  grin.rotation.z = Math.PI + Math.PI * 0.125;
-  head.add(grin);
+  const mouth = shiny('#b9605c');
+  if (o.mood === 'serious') {
+    // gesto serio: boca recta y cejas rectas (ya puestas)
+    stitch(head, [-0.022, -0.058, 0.144], [0.022, -0.058, 0.144], '#a0554f', 0.0045);
+  } else if (o.mood === 'shy') {
+    // sonrisa tímida: pequeña, de lado y con los labios cerrados
+    const grin = part(new THREE.TorusGeometry(0.018, 0.0045, 6, 16, Math.PI * 0.7), mouth, 0.008, -0.056, 0.143);
+    grin.rotation.z = Math.PI + Math.PI * 0.15 - 0.15;
+    head.add(grin);
+  } else if (o.mood === 'big') {
+    // sonrisa amplia, enseñando los dientes
+    const smileGeo = new THREE.SphereGeometry(1, 20, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+    const m = part(smileGeo, shiny('#5a2a28'), 0, -0.05, 0.138);
+    m.scale.set(0.04, 0.025, 0.012);
+    head.add(m);
+    const teeth = part(new THREE.BoxGeometry(0.06, 0.008, 0.006), shiny('#fbfaf6'), 0, -0.054, 0.146);
+    head.add(teeth);
+  } else {
+    const grin = part(new THREE.TorusGeometry(0.032, 0.0055, 6, 20, Math.PI * 0.75), mouth, 0, -0.058, 0.142);
+    grin.rotation.z = Math.PI + Math.PI * 0.125;
+    head.add(grin);
+  }
   if (o.stubble) {
     const st = new THREE.MeshStandardMaterial({ color: o.stubble, roughness: 1, transparent: true, opacity: 0.45 });
     head.add(ball(st, 0.07, 0, -0.105, 0.075, 1.3, 0.55, 0.95));
   }
-  const blush = new THREE.MeshStandardMaterial({ color: '#ff9aa6', roughness: 1, transparent: true, opacity: 0.35 });
+  const blush = new THREE.MeshStandardMaterial({ color: '#ff9aa6', roughness: 1, transparent: true, opacity: o.mood === 'shy' ? 0.6 : o.mood === 'serious' ? 0.15 : 0.35 });
   head.add(ball(blush, 0.024, -0.085, -0.035, 0.125, 1, 0.6, 0.3));
   head.add(ball(blush, 0.024, 0.085, -0.035, 0.125, 1, 0.6, 0.3));
   if (o.extras) o.extras({ body, head, arms, skin, hair });
@@ -1346,11 +1457,11 @@ const BUILDERS = {
     });
   },
 
-  // Toni petit: pelo rapado, camiseta blanca con lancha roja y cámara colgada de la cinta.
+  // Toni petit: pelo rapado, gesto serio, espalda ancha, brazos musculosos, camisa japonesa y cámara colgada.
   tonipetit() {
     return person(this, {
-      skin: 'tan', hair: 'buzz', hairColor: '#2c2420', topMap: getBoatTee(), top: '#f6f4ef', pants: '#d8d2c4', shoes: '#f2f2f0',
-      soles: '#2a2a2a', chest: 0.17, wideFace: true,
+      skin: 'tan', hair: 'buzz', hairColor: '#2c2420', topMap: getJapanShirt(), top: '#1e2c55', collar: 'shirt', pants: '#d8d2c4',
+      shoes: '#f2f2f0', soles: '#2a2a2a', chest: 0.17, shoulders: 1.22, muscles: true, mood: 'serious', wideFace: true,
       extras: ({ body }) => {
         const black = new THREE.MeshStandardMaterial({ color: '#151414', roughness: 0.5 });
         stitch(body, [-0.08, 1.14, 0.1], [0.05, 0.84, 0.13], '#151414', 0.009);
@@ -1364,27 +1475,19 @@ const BUILDERS = {
     });
   },
 
-  // Pau: polo marrón, pantalón blanco, pelo castaño despeinado y gafas de sol sobre la cabeza.
+  // Pau: espalda ancha, tupé a lo James Dean, sonriente, polo marrón y pantalón blanco.
   pau() {
     return person(this, {
-      skin: 'light', hair: 'messy', hairColor: '#4a3020', eyes: '#5f7d8c', top: '#7a5554', collar: 'polo', pants: '#f3f1ec',
-      shoes: '#e9e6e0', chest: 0.175, wideFace: true,
-      extras: ({ head }) => {
-        const dark = new THREE.MeshStandardMaterial({ color: '#141414', metalness: 0.4, roughness: 0.15 });
-        const shades = new THREE.Group();
-        shades.position.set(0, 0.13, 0.08);
-        shades.rotation.x = -0.6;
-        for (const s of [-1, 1]) shades.add(ball(dark, 0.034, s * 0.052, 0, 0, 1.15, 0.9, 0.3));
-        shades.add(part(new THREE.BoxGeometry(0.03, 0.006, 0.006), dark, 0, 0.01, 0));
-        head.add(shades);
-      },
+      skin: 'light', hair: 'pompadour', hairColor: '#4a3020', eyes: '#5f7d8c', top: '#7a5554', collar: 'polo', pants: '#f3f1ec',
+      shoes: '#e9e6e0', chest: 0.175, shoulders: 1.22, mood: 'big', wideFace: true,
     });
   },
 
-  // Anita: melena castaña, jersey marrón con tachuelas en el escote, collar y vaqueros claros anchos.
+  // Anita: melena rubia lisa, sonrisa tímida, jersey marrón con tachuelas, collar y vaqueros claros anchos.
   anita() {
     return person(this, {
-      skin: 'light', hair: 'long', hairColor: '#5a3a26', top: '#4a2e22', sleeves: 'long', collar: 'studs',
+      skin: 'light', hair: 'straight', sleekHair: true, hairColor: '#d8b878', brows: '#8a6a42', mood: 'shy',
+      top: '#4a2e22', sleeves: 'long', collar: 'studs',
       pants: '#bcd0de', wide: true, shoes: '#1c1c1e', soles: '#f2f2f2',
       extras: ({ body }) => {
         const silver = new THREE.MeshStandardMaterial({ color: '#dfe2e6', metalness: 0.9, roughness: 0.2 });
