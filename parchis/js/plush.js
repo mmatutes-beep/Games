@@ -513,7 +513,9 @@ function person(g, o) {
   const top = o.topMap
     ? new THREE.MeshPhysicalMaterial({ map: o.topMap, bumpMap: getFur(), bumpScale: 0.3, roughness: 1, sheen: 0.6, sheenColor: new THREE.Color('#ffffff') })
     : fabric(o.top, getFur(), getFur(), 0.4);
-  const sleeveMat = fabric(o.top, getFur(), getFur(), 0.4);
+  const coat = o.jacket && fabric(o.jacket, getFur(), getFur(), 0.5);
+  if (coat) coat.side = THREE.DoubleSide;
+  const sleeveMat = coat || fabric(o.top, getFur(), getFur(), 0.4);
   const pants = o.pantsKnit ? knitted(o.pants) : fabric(o.pants, getFur(), getFur(), 0.5);
   const body = rig(g);
   // piernas y pies
@@ -548,6 +550,23 @@ function person(g, o) {
   torso.scale.z = 0.72;
   body.add(torso);
   body.add(ball(sleeveMat, 0.155, 0, 1.1, 0, 1.05 * sh, 0.35, 0.72));
+  if (coat) {
+    // americana abierta por delante: deja ver la camiseta, con solapas y un botón
+    const r0 = (o.chest || 0.155) * sh * 1.07;
+    const shell = part(new THREE.CylinderGeometry(r0, r0 * 0.96 + 0.015, 0.27, 32, 1, true, 0.36, Math.PI * 2 - 0.72), coat, 0, 0.985, 0);
+    shell.scale.z = 0.74;
+    body.add(shell);
+    // por debajo del pecho se cierra
+    const hem = part(new THREE.CylinderGeometry(r0 * 0.96 + 0.015, 0.183, 0.18, 32, 1, true), coat, 0, 0.77, 0);
+    hem.scale.z = 0.74;
+    body.add(hem);
+    for (const s of [-1, 1]) {
+      const lapel = part(new THREE.BoxGeometry(0.04, 0.2, 0.014), coat, s * 0.05, 1.0, 0.124);
+      lapel.rotation.set(-0.1, s * 0.25, -s * 0.3);
+      body.add(lapel);
+    }
+    body.add(ball(shiny('#2a2a26'), 0.012, 0, 0.82, 0.137));
+  }
   // cuello de la prenda
   if (o.collar === 'v') {
     stitch(body, [-0.06, 1.15, 0.1], [0, 1.03, 0.115], '#d9d4ca', 0.008);
@@ -576,7 +595,7 @@ function person(g, o) {
     }
   }
   // brazos
-  const long = o.sleeves === 'long';
+  const long = o.sleeves === 'long' || !!coat;
   const arms = [-1, 1].map((s) => {
     const arm = new THREE.Group();
     arm.position.set(s * (0.195 + (sh - 1) * 0.17), 1.08, 0);
@@ -1415,12 +1434,12 @@ const BUILDERS = {
     return { body, head, armL: arms[0], armR: arms[1] };
   },
 
-  // Toni gros: camiseta blanca de pico, pelo corto entrecano, barba corta, gafas de sol azules
-  // y las gafas blancas colgadas del cuello.
+  // Toni gros: americana verde sobre camiseta blanca de pico, zapatillas amarillas, pelo corto
+  // entrecano, barba corta, gafas de sol azules y las gafas blancas colgadas del cuello.
   tonigros() {
     return person(this, {
       skin: 'sun', hair: 'short', hairColor: '#4a3a2e', greyStreaks: true, stubble: '#8c8478',
-      top: '#f3f1ec', collar: 'v', pants: '#d9cdb8', shoes: '#6b5644', sunglasses: true, wideFace: true, chest: 0.165,
+      top: '#f3f1ec', jacket: '#3f6b3a', collar: 'v', pants: '#d9cdb8', shoes: '#f2c418', soles: '#f4f4f2', sunglasses: true, wideFace: true, chest: 0.165,
       extras: ({ body }) => {
         const white = new THREE.MeshStandardMaterial({ color: '#f4f4f2', roughness: 0.4 });
         const glasses = new THREE.Group();
