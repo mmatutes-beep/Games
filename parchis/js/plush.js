@@ -503,6 +503,39 @@ function getJapanShirt() {
   return japanShirt;
 }
 
+// Cortina de pelo continua que cae desde las sienes hasta la espalda: rodea la nuca y se va
+// abriendo hacia atrás para pasar por detrás de los hombros, con ondas suaves y puntas redondeadas.
+function hairCurtain(rx, ry, rz, len, segU = 48, segV = 32) {
+  const pos = [], idx = [];
+  const smooth = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const y0 = ry * 0.45; // arranca por encima de las orejas, pegada a la cabeza
+  for (let j = 0; j <= segV; j++) {
+    const v = j / segV;
+    const edge = 1.05 + smooth(0.15, 0.55, v) * 0.95; // ángulo libre alrededor de la cara
+    const yc = y0 - v * (len + y0);
+    const head = yc > 0 ? Math.sqrt(1 - (yc / (ry * 1.1)) ** 2) : 1; // sigue la forma de la cabeza
+    const grow = 1.1 * head + 0.1 * smooth(0.3, 0.75, v) - 0.05 * smooth(0.9, 1, v);
+    for (let i = 0; i <= segU; i++) {
+      const u = i / segU * 2 - 1;
+      const th = Math.PI + u * (Math.PI - edge);
+      const r = grow * (1 + 0.016 * Math.sin(u * 15) * smooth(0.25, 0.6, v));
+      // las puntas acaban en una U suave, más largas en el centro de la espalda
+      pos.push(Math.sin(th) * rx * r, yc + (v > 0.5 ? (v - 0.5) * 2 * 0.14 * len * u * u : 0), Math.cos(th) * rz * r - 0.03 * v);
+    }
+  }
+  for (let j = 0; j < segV; j++) {
+    for (let i = 0; i < segU; i++) {
+      const a = j * (segU + 1) + i, b = a + segU + 1;
+      idx.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
 const SKIN = { light: '#f1cdb0', tan: '#e7b48e', sun: '#dca07a' };
 
 function person(g, o) {
@@ -515,7 +548,8 @@ function person(g, o) {
     : fabric(o.top, getFur(), getFur(), 0.4);
   const coat = o.jacket && fabric(o.jacket, getFur(), getFur(), 0.5);
   if (coat) coat.side = THREE.DoubleSide;
-  const sleeveMat = coat || fabric(o.top, getFur(), getFur(), 0.4);
+  const shirtMat = fabric(o.top, getFur(), getFur(), 0.4);
+  const sleeveMat = coat || shirtMat;
   const pants = o.pantsKnit ? knitted(o.pants) : fabric(o.pants, getFur(), getFur(), 0.5);
   const body = rig(g);
   // piernas y pies
@@ -551,21 +585,49 @@ function person(g, o) {
   body.add(torso);
   body.add(ball(sleeveMat, 0.155, 0, 1.1, 0, 1.05 * sh, 0.35, 0.72));
   if (coat) {
-    // americana abierta por delante: deja ver la camiseta, con solapas y un botón
+    // americana abierta por delante: deja ver la camisa, con solapas en pico, bolsillos y un botón
     const r0 = (o.chest || 0.155) * sh * 1.07;
     const shell = part(new THREE.CylinderGeometry(r0, r0 * 0.96 + 0.015, 0.27, 32, 1, true, 0.36, Math.PI * 2 - 0.72), coat, 0, 0.985, 0);
     shell.scale.z = 0.74;
     body.add(shell);
     // por debajo del pecho se cierra
-    const hem = part(new THREE.CylinderGeometry(r0 * 0.96 + 0.015, 0.183, 0.18, 32, 1, true), coat, 0, 0.77, 0);
+    const hem = part(new THREE.CylinderGeometry(r0 * 0.96 + 0.015, 0.186, 0.2, 32, 1, true), coat, 0, 0.76, 0);
     hem.scale.z = 0.74;
     body.add(hem);
+    // cuello de la americana por detrás de la nuca
+    const back = part(new THREE.TorusGeometry(0.06, 0.018, 8, 20, Math.PI), coat, 0, 1.125, -0.01);
+    back.rotation.set(Math.PI / 2, 0, Math.PI);
+    back.scale.set(1.1, 1, 1);
+    body.add(back);
+    const lapelGeo = (s) => {
+      const sh2 = new THREE.Shape();
+      sh2.moveTo(s * 0.03, 1.13);
+      sh2.lineTo(s * 0.1, 1.1);
+      sh2.lineTo(s * 0.085, 1.055); // muesca
+      sh2.lineTo(s * 0.11, 1.04);
+      sh2.lineTo(s * 0.004, 0.84);
+      sh2.lineTo(s * 0.03, 1.13);
+      const g = new THREE.ExtrudeGeometry(sh2, { depth: 0.012, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2 });
+      return g;
+    };
+    const lapelMat = fabric(new THREE.Color(o.jacket).multiplyScalar(0.85), getFur(), getFur(), 0.5);
     for (const s of [-1, 1]) {
-      const lapel = part(new THREE.BoxGeometry(0.04, 0.2, 0.014), coat, s * 0.05, 1.0, 0.124);
-      lapel.rotation.set(-0.1, s * 0.25, -s * 0.3);
+      const lapel = part(lapelGeo(s), lapelMat, 0, 0, 0.118);
+      lapel.rotation.y = s * 0.22;
       body.add(lapel);
+      // bolsillo con tapa a la altura de la cadera
+      const flap = part(new THREE.BoxGeometry(0.075, 0.03, 0.01), lapelMat, s * 0.105, 0.77, 0.112);
+      flap.rotation.y = s * 0.7;
+      body.add(flap);
     }
-    body.add(ball(shiny('#2a2a26'), 0.012, 0, 0.82, 0.137));
+    // bolsillo de pecho con pañuelo blanco
+    const pocket = part(new THREE.BoxGeometry(0.045, 0.008, 0.01), lapelMat, -0.128, 0.97, 0.097);
+    pocket.rotation.y = -0.9;
+    body.add(pocket);
+    const hanky = part(new THREE.BoxGeometry(0.035, 0.022, 0.006), fabric('#fbfaf6', getFur(), getFur(), 0.2), -0.126, 0.982, 0.095);
+    hanky.rotation.set(0, -0.9, 0.15);
+    body.add(hanky);
+    for (const y of [0.84, 0.77]) body.add(ball(shiny('#1e2a1c'), 0.011, 0, y, 0.138));
   }
   // cuello de la prenda
   if (o.collar === 'v') {
@@ -583,8 +645,11 @@ function person(g, o) {
     // camisa abierta: solapas, botones y la piel del escote
     body.add(ball(skin, 0.045, 0, 1.11, 0.095, 1, 1.5, 0.3));
     for (const s of [-1, 1]) {
-      const flap = part(new THREE.BoxGeometry(0.08, 0.1, 0.012), sleeveMat, s * 0.06, 1.1, 0.11);
-      flap.rotation.set(-0.35, s * 0.3, s * 0.45);
+      const flap = coat
+        ? part(new THREE.BoxGeometry(0.05, 0.045, 0.01), shirtMat, s * 0.036, 1.14, 0.085) // cuello que asoma sobre la americana
+        : part(new THREE.BoxGeometry(0.08, 0.1, 0.012), shirtMat, s * 0.06, 1.1, 0.11);
+      if (coat) flap.rotation.set(-0.45, s * 0.55, s * 0.5);
+      else flap.rotation.set(-0.35, s * 0.3, s * 0.45);
       body.add(flap);
     }
     for (let i = 0; i < 4; i++) body.add(ball(shiny('#e8e4da'), 0.009, 0.012, 1.0 - i * 0.085, 0.118));
@@ -626,22 +691,15 @@ function person(g, o) {
   for (const s of [-1, 1]) head.add(ball(skin, 0.022, s * 0.138, 0, -0.005, 0.5, 1, 0.8)); // orejas
   // pelo
   if (o.hair === 'straight') {
-    // melena lisa que cae recta: casquete con raya al lado y cortinas de pelo
-    const cap = part(new THREE.SphereGeometry(1, 32, 18, 0, Math.PI * 2, 0, Math.PI * 0.55), hair, 0, 0.012, -0.008);
-    cap.scale.set(0.155 * 0.92, 0.155 * 1.14, 0.155 * 1.0);
-    cap.rotation.x = -0.25;
+    // melena de princesa: casquete liso y una sola cortina continua hasta media espalda
+    const hx = 0.155 * (o.wideFace ? 0.95 : 0.88), hy = 0.155 * 1.08, hz = 0.155 * 0.95;
+    const cap = part(new THREE.SphereGeometry(1, 40, 20, 0, Math.PI * 2, 0, Math.PI * 0.5), hair, 0, 0.01, -0.004);
+    cap.scale.set(hx * 1.085, hy * 1.085, hz * 1.085);
+    cap.rotation.x = -0.32;
     head.add(cap);
-    for (const s of [-1, 1]) {
-      const curtain = part(new THREE.BoxGeometry(0.05, 0.42, 0.13), hair, s * 0.13, -0.13, -0.025);
-      curtain.rotation.z = -s * 0.06;
-      head.add(curtain);
-      head.add(ball(hair, 1, s * 0.13, 0.08, -0.025, 0.035, 0.08, 0.075)); // redondea el arranque
-    }
-    head.add(part(new THREE.BoxGeometry(0.25, 0.48, 0.045), hair, 0, -0.14, -0.12));
-    // flequillo ladeado
-    const bang = ball(hair, 1, 0.035, 0.115, 0.095, 0.1, 0.045, 0.05);
-    bang.rotation.z = -0.35;
-    head.add(bang);
+    const flow = hair.clone();
+    flow.side = THREE.DoubleSide;
+    head.add(part(hairCurtain(hx, hy, hz * 1.06, o.hairLength || 0.55), flow));
   } else if (o.hair === 'pompadour') {
     // tupé a lo James Dean: laterales cortos y una onda alta peinada hacia atrás
     const hx = 0.155 * (o.wideFace ? 0.95 : 0.88), hy = 0.155 * 1.08, hz = 0.155 * 0.95;
@@ -649,7 +707,7 @@ function person(g, o) {
     cap.scale.set(hx * 1.04, hy * 1.04, hz * 1.04);
     cap.rotation.x = -0.3;
     head.add(cap);
-    head.add(ball(hair, 1, 0, -0.035, -0.05, hx * 1.0, hy * 0.62, 0.105));
+    head.add(ball(hair, 1, 0, -0.03, -0.03, hx * 1.06, hy * 0.7, hz * 1.04 - 0.027));
     // la onda: volumen alto sobre la frente que se va peinando hacia atrás
     const quiff = ball(hair, 1, 0.006, 0.125, 0.03, hx * 0.86, 0.075, 0.155);
     quiff.rotation.x = -0.32;
@@ -675,7 +733,7 @@ function person(g, o) {
     cap.rotation.x = -0.28;
     head.add(cap);
     // nuca
-    head.add(ball(hair, 1, 0, -0.035, -0.05, hx * k * 0.97, hy * 0.62, 0.105));
+    head.add(ball(hair, 1, 0, -0.03, -0.03, hx * Math.max(k, 1.06), hy * 0.7, hz * k - 0.027));
     if (o.hair === 'messy') {
       for (let i = 0; i < 5; i++) head.add(ball(hair, 0.045, -0.08 + i * 0.04, 0.13 + (i % 2) * 0.01, 0.06, 1, 0.6, 0.9));
     }
@@ -1434,12 +1492,12 @@ const BUILDERS = {
     return { body, head, armL: arms[0], armR: arms[1] };
   },
 
-  // Toni gros: americana verde sobre camiseta blanca de pico, zapatillas amarillas, pelo corto
+  // Toni gros: americana verde sobre camisa blanca, zapatillas amarillas, pelo corto
   // entrecano, barba corta, gafas de sol azules y las gafas blancas colgadas del cuello.
   tonigros() {
     return person(this, {
       skin: 'sun', hair: 'short', hairColor: '#4a3a2e', greyStreaks: true, stubble: '#8c8478',
-      top: '#f3f1ec', jacket: '#3f6b3a', collar: 'v', pants: '#d9cdb8', shoes: '#f2c418', soles: '#f4f4f2', sunglasses: true, wideFace: true, chest: 0.165,
+      top: '#fbfaf6', jacket: '#3f6b3a', collar: 'shirt', pants: '#d9cdb8', shoes: '#f2c418', soles: '#f4f4f2', sunglasses: true, wideFace: true, chest: 0.165,
       extras: ({ body }) => {
         const white = new THREE.MeshStandardMaterial({ color: '#f4f4f2', roughness: 0.4 });
         const glasses = new THREE.Group();
@@ -1502,7 +1560,7 @@ const BUILDERS = {
     });
   },
 
-  // Anita: melena rubia lisa, sonrisa tímida, jersey marrón con tachuelas, collar y vaqueros claros anchos.
+  // Anita: melena rubia de princesa hasta media espalda, sonrisa tímida, jersey marrón con tachuelas, collar y vaqueros claros anchos.
   anita() {
     return person(this, {
       skin: 'light', hair: 'straight', sleekHair: true, hairColor: '#d8b878', brows: '#8a6a42', mood: 'shy',
